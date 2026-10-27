@@ -1,0 +1,147 @@
+import AppKit
+import SwiftUI
+
+/// 自检口子：不点鼠标也能验这一轮的东西。
+///   OpenFeed --probe --fetch                 拉一次，打印统计
+///   OpenFeed --probe --snapshot <目录>        把面板按深 / 浅两档离屏渲染成 PNG
+///   OpenFeed --probe --dump                  只打印盘上那份数据的统计
+final class BackdropView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        bounds.fill()
+    }
+}
+
+enum Probe {
+    static var isRequested: Bool { CommandLine.arguments.contains("--probe") }
+
+    @MainActor
+    static func run(store: FeedStore) async {
+        let arguments = CommandLine.arguments
+        var report: [String: Any] = [:]
+        report["authorized"] = Auth.source
+
+        if arguments.contains("--fetch") {
+            let started = Date()
+            await store.refresh(manual: true)
+            report["fetchSeconds"] = Int(Date().timeIntervalSince(started).rounded())
+            report["phase"] = describe(store.phase)
+            report["report"] = store.snapshot.report
+        }
+
+        let today = store.items.filter { $0.isNewToday }
+        var byKind: [String: Int] = [:]
+        for item in store.items { byKind[item.kind.rawValue, default: 0] += 1 }
+        var byLane: [String: Int] = [:]
+        for item in today { byLane[item.lane, default: 0] += 1 }
+
+        report["seenRepos"] = SeenIndex.load().repos.count
+        report["items"] = store.items.count
+        report["today"] = today.count
+        report["byKind"] = byKind
+        report["todayByLane"] = byLane
+        report["lastSuccess"] = store.snapshot.lastSuccessAt.map(ISO8601DateFormatter().string) ?? "never"
+        report["withImage"] = store.items.filter { $0.imageURL != nil }.count
+        report["top"] = today.prefix(8).map { item -> [String: Any] in
+            [
+                "kind": item.kind.rawValue,
+                "lane": item.lane,
+                "title": item.title,
+                "subtitle": item.subtitle,
+                "stars": item.stars ?? -1,
+                "delta": item.starsDelta ?? -1,
+                "age": item.createdAt.agoText,
+                "summary": String(item.summary.prefix(90))
+            ]
+        }
+
+        if arguments.contains("--schedule") {
+            let calendar = Calendar.current
+            let today9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+            let cases: [(String, Date?, Date)] = [
+                ("昨晚 22:00 拉过，现在 08:59", today9.addingTimeInterval(-11 * 3_600), today9.addingTimeInterval(-60)),
+                ("昨晚 22:00 拉过，现在 09:01", today9.addingTimeInterval(-11 * 3_600), today9.addingTimeInterval(60)),
+                ("今天 09:05 拉过，现在 09:30", today9.addingTimeInterval(5 * 60), today9.addingTimeInterval(30 * 60)),
+                ("从没拉过，现在 08:00", nil, today9.addingTimeInterval(-3_600)),
+                ("从没拉过，现在 23:00", nil, today9.addingTimeInterval(14 * 3_600))
+            ]
+            report["schedule"] = cases.map { name, last, now in
+                ["case": name, "due": Scheduler.isDue(lastSuccess: last, now: now, hour: 9)]
+            }
+        }
+
+        if let index = arguments.firstIndex(of: "--snapshot"), index + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            for (name, appearance) in [("panel-dark", NSAppearance(named: .darkAqua)),
+                                       ("panel-light", NSAppearance(named: .aqua))] {
+                if let data = await render(store: store, appearance: appearance) {
+                    try? data.write(to: directory.appendingPathComponent("\(name).png"))
+                }
+            }
+            report["snapshotDir"] = directory.path
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: report,
+                                                   options: [.prettyPrinted, .sortedKeys]) {
+            FileHandle.standardOutput.write(data)
+            FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+        }
+        NSApp.terminate(nil)
+        exit(0)
+    }
+
+    private static func describe(_ phase: FeedStore.Phase) -> String {
+        switch phase {
+        case .idle: return "idle"
+        case .running(let text): return "running: \(text)"
+        case .failed(let text): return "failed: \(text)"
+        }
+    }
+
+    /// 把一个真的窗口摆到屏幕外再截图：这样 SwiftUI 的异步任务（缩略图）才会真的跑。
+    @MainActor
+    private static func render(store: FeedStore, appearance: NSAppearance?) async -> Data? {
+        let size = NSSize(width: T.width, height: T.height)
+        // 底色要现画，不能用 layer 的 cgColor：它是赋值那一刻的解析结果，切到浅色也不会变。
+        let root = BackdropView(frame: NSRect(origin: .zero, size: size))
+
+        let vibrancy = NSVisualEffectView(frame: root.bounds)
+        vibrancy.material = .popover
+        vibrancy.blendingMode = .withinWindow
+        vibrancy.state = .active
+        vibrancy.autoresizingMask = [.width, .height]
+        root.addSubview(vibrancy)
+
+        let panel = FeedPanel(
+            store: store,
+            onOpen: { _ in },
+            onRefresh: {},
+            onMenu: { _ in }
+        )
+        let host = NSHostingView(rootView: panel)
+        host.frame = root.bounds
+        host.autoresizingMask = [.width, .height]
+        vibrancy.addSubview(host)
+
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = appearance
+        window.isOpaque = false
+        window.contentView = root
+        window.orderFrontRegardless()
+        root.layoutSubtreeIfNeeded()
+
+        // 等缩略图下载 + 布局稳定。最多两秒，宁可少几张图也不卡在这里。
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        root.layoutSubtreeIfNeeded()
+
+        guard let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else {
+            window.orderOut(nil)
+            return nil
+        }
+        root.cacheDisplay(in: root.bounds, to: rep)
+        window.orderOut(nil)
+        return rep.representation(using: .png, properties: [:])
+    }
+}
