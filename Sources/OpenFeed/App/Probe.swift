@@ -58,6 +58,7 @@ enum Probe {
                 "value": Int(item.value.rounded()),
                 "reasons": item.reasons,
                 "explore": item.isExploration,
+                "core": item.coreLine ?? "",
                 "summary": String(item.summary.prefix(90))
             ]
         }
@@ -100,6 +101,24 @@ enum Probe {
                         .map { "\($0.key)=\(String(format: "%.2f", $0.value))" }
                 ]
             }
+        }
+
+        if arguments.contains("--summaries") {
+            await CoreValue.prewarm(items: today, limit: 60)
+            var results: [[String: Any]] = []
+            for item in today.prefix(6) {
+                let started = Date()
+                let line = await CoreValue.line(for: item)
+                results.append([
+                    "title": item.title,
+                    "kind": item.kind.rawValue,
+                    "line": line ?? "(nil)",
+                    "ms": Int(Date().timeIntervalSince(started) * 1000)
+                ])
+            }
+            store.fillCoreLines()
+            report["summaries"] = results
+            report["keySource"] = CoreValue.keySource
         }
 
         if arguments.contains("--images") {
@@ -198,7 +217,16 @@ enum Probe {
         window.contentView = root
         window.orderFrontRegardless()
         root.layoutSubtreeIfNeeded()
-        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        try? await Task.sleep(nanoseconds: 1_800_000_000)
+        // 图 / 一句话是异步来的，截之前按真实内容重新收一次高度
+        host.layoutSubtreeIfNeeded()
+        let fitted = host.fittingSize
+        if fitted.height > 200, abs(fitted.height - size.height) > 2 {
+            size = NSSize(width: size.width, height: fitted.height)
+            root.frame = NSRect(origin: .zero, size: size)
+            host.frame = root.bounds
+            root.layoutSubtreeIfNeeded()
+        }
         guard let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else {
             window.orderOut(nil)
             return nil

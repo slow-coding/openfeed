@@ -28,8 +28,8 @@ struct FeedRow: View {
                     }
                     .frame(height: T.icon, alignment: .center)
 
-                    if !item.summary.isEmpty {
-                        Text(item.summary)
+                    if let summary = item.coreLine ?? (item.summary.isEmpty ? nil : item.summary) {
+                        Text(summary)
                             .font(.system(size: T.summarySize))
                             .foregroundStyle(.secondary)
                             .lineLimit(item.isRepo ? 2 : 1)

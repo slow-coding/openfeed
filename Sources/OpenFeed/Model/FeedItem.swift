@@ -1,5 +1,10 @@
 import Foundation
 
+extension Notification.Name {
+    /// 某条的一句话摘要算好了
+    static let openFeedCoreLine = Notification.Name("openfeed.coreline")
+}
+
 enum FeedKind: String, Codable, CaseIterable {
     case repo
     case release
@@ -40,6 +45,8 @@ struct FeedItem: Codable, Identifiable, Hashable {
     /// 价值分与理由，每次排序重算
     var value: Double = 0
     var reasons: [String] = []
+    /// 「它到底做了什么」那一句话
+    var coreLine: String?
 
     var isRepo: Bool { kind == .repo }
     var isNewToday: Bool { Calendar.current.isDateInToday(foundAt) }
@@ -55,19 +62,20 @@ struct FeedItem: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, kind, title, subtitle, summary, url, imageURL, avatarURL, keyImagePath
         case stars, language, starsDelta, createdAt, foundAt, lane, visitedAt
-        case isExploration, value, reasons
+        case isExploration, value, reasons, coreLine
     }
 
     init(id: String, kind: FeedKind, title: String, subtitle: String, summary: String, url: URL,
          imageURL: URL?, avatarURL: URL?, keyImagePath: String? = nil, stars: Int?, language: String?,
          starsDelta: Int?, createdAt: Date, foundAt: Date, lane: String, visitedAt: Date? = nil,
-         isExploration: Bool = false, value: Double = 0, reasons: [String] = []) {
+         isExploration: Bool = false, value: Double = 0, reasons: [String] = [],
+         coreLine: String? = nil) {
         self.id = id; self.kind = kind; self.title = title; self.subtitle = subtitle
         self.summary = summary; self.url = url; self.imageURL = imageURL; self.avatarURL = avatarURL
         self.keyImagePath = keyImagePath; self.stars = stars; self.language = language
         self.starsDelta = starsDelta; self.createdAt = createdAt; self.foundAt = foundAt
         self.lane = lane; self.visitedAt = visitedAt; self.isExploration = isExploration
-        self.value = value; self.reasons = reasons
+        self.value = value; self.reasons = reasons; self.coreLine = coreLine
     }
 
     // 老快照里没有后加的字段，缺了就取默认值，别让整份数据解不出来。
@@ -92,6 +100,7 @@ struct FeedItem: Codable, Identifiable, Hashable {
         isExploration = try box.decodeIfPresent(Bool.self, forKey: .isExploration) ?? false
         value = try box.decodeIfPresent(Double.self, forKey: .value) ?? 0
         reasons = try box.decodeIfPresent([String].self, forKey: .reasons) ?? []
+        coreLine = try box.decodeIfPresent(String.self, forKey: .coreLine)
     }
 }
 

@@ -22,10 +22,14 @@ enum Auth {
     }
 
     static var keychainToken: String? {
+        keychainToken(service: keychainService, account: keychainAccount)
+    }
+
+    static func keychainToken(service: String, account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]

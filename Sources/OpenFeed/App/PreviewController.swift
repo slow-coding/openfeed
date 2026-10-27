@@ -63,11 +63,9 @@ final class PreviewController {
         }
 
         // 高度跟着卡片内容走，别在底下留一截空白
-        if let host {
-            host.layoutSubtreeIfNeeded()
-            let fit = host.fittingSize
-            var frame = panel?.frame ?? NSRect(origin: .zero, size: Self.size)
-            frame.size.height = min(Self.maxHeight, max(300, fit.height))
+        if panel != nil {
+            var frame = panel!.frame
+            frame.size.height = fittedHeight()
             panel?.setFrame(frame, display: false)
         }
         position(item: item)
@@ -88,6 +86,12 @@ final class PreviewController {
         currentID = nil
         currentItem = nil
         panel?.orderOut(nil)
+    }
+
+    private func fittedHeight() -> CGFloat {
+        guard let host else { return Self.size.height }
+        host.layoutSubtreeIfNeeded()
+        return min(Self.maxHeight, max(300, host.fittingSize.height))
     }
 
     private func position(item: FeedItem) {
@@ -114,6 +118,15 @@ final class PreviewController {
 
     private func tick() {
         guard let panel, panel.isVisible else { hide(); return }
+        // 图和一句话是异步来的，来了窗口要跟着长；松手时定死就会把页脚裁掉。
+        let target = fittedHeight()
+        if abs(panel.frame.height - target) > 2 {
+            let top = panel.frame.maxY
+            var frame = panel.frame
+            frame.size.height = target
+            frame.origin.y = max(8, top - target)
+            panel.setFrame(frame, display: true, animate: false)
+        }
         let mouse = NSEvent.mouseLocation
         let insidePanel = panel.frame.contains(mouse)
         let insidePopover = anchorWindow?.frame.contains(mouse) ?? false

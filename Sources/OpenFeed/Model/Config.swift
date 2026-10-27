@@ -146,6 +146,8 @@ enum Paths {
     static var feed: URL { root.appendingPathComponent("feed.json") }
     static var seen: URL { root.appendingPathComponent("seen.json") }
     static var prefs: URL { root.appendingPathComponent("prefs.json") }
+    static var summaries: URL { root.appendingPathComponent("summaries.json") }
+    static var readmes: URL { cache.appendingPathComponent("readmes", isDirectory: true) }
     static var cache: URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("OpenFeed", isDirectory: true)
@@ -154,7 +156,7 @@ enum Paths {
     static var avatars: URL { cache.appendingPathComponent("avatars", isDirectory: true) }
     static var imageManifest: URL { cache.appendingPathComponent("images.json") }
     static func ensure() {
-        for directory in [root, cache, images, avatars] {
+        for directory in [root, cache, images, avatars, readmes] {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
     }

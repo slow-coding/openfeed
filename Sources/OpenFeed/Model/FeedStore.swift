@@ -29,7 +29,15 @@ final class FeedStore: ObservableObject {
         snapshot = Self.loadSnapshot()
         seen = SeenIndex.load()
         prefs = Preferences.load()
+        NotificationCenter.default.addObserver(forName: .openFeedCoreLine, object: nil, queue: .main) { note in
+            guard let id = note.userInfo?["id"] as? String,
+                  let line = note.userInfo?["line"] as? String else { return }
+            Task { @MainActor in FeedStore.shared?.applyCoreLine(id: id, line: line) }
+        }
     }
+
+    /// AppDelegate 建的这一个；通知和自检口子都要能找到它。
+    static weak var shared: FeedStore?
 
     // MARK: - 读
 
@@ -159,6 +167,25 @@ final class FeedStore: ObservableObject {
         }
     }
 
+    func applyCoreLine(id: String, line: String) {
+        guard let index = snapshot.items.firstIndex(where: { $0.id == id }) else { return }
+        guard snapshot.items[index].coreLine != line else { return }
+        snapshot.items[index].coreLine = line
+        save()
+    }
+
+    /// 预热算完的、以及别的窗口算好的，都从这里补进条目。
+    func fillCoreLines() {
+        var changed = false
+        for index in snapshot.items.indices where snapshot.items[index].coreLine == nil {
+            if let line = CoreValue.cached(snapshot.items[index].id) {
+                snapshot.items[index].coreLine = line
+                changed = true
+            }
+        }
+        if changed { save() }
+    }
+
     func resetPreferences() {
         prefs = Preferences()
         prefs.save()
@@ -264,6 +291,12 @@ final class FeedStore: ObservableObject {
         if succeeded {
             Task.detached(priority: .utility) { [items = merged.items] in
                 await KeyImage.prewarm(items: items, limit: 12)
+            }
+            Task { [weak self] in
+                guard let self else { return }
+                let pending = self.snapshot.items
+                await CoreValue.prewarm(items: pending, limit: 40)
+                self.fillCoreLines()
             }
             // 只留今天和昨天的图，更老的在盘上不该继续占地方。
             let keep: Set<String> = [

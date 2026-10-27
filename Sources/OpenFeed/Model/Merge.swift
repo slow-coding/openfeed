@@ -198,6 +198,9 @@ enum Merge {
             let scored = ValueModel.score(items[index], prefs: prefs, now: now)
             items[index].value = scored.value
             items[index].reasons = scored.reasons
+            if items[index].coreLine == nil {
+                items[index].coreLine = CoreValue.cached(items[index].id)
+            }
         }
 
         // 偏好变了，没手动排过的那部分要跟着重排。

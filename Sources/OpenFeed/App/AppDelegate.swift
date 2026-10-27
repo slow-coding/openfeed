@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hoverWork: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        FeedStore.shared = store
         store.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -242,6 +243,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let authItem = NSMenuItem(title: "GitHub：\(Auth.source)", action: nil, keyEquivalent: "")
         authItem.isEnabled = false
         menu.addItem(authItem)
+
+        let summaryItem = NSMenuItem(title: "一句话摘要：\(CoreValue.keySource)", action: nil, keyEquivalent: "")
+        summaryItem.isEnabled = false
+        menu.addItem(summaryItem)
 
         if case .failed(let text) = store.phase {
             let errorItem = NSMenuItem(title: "上次失败：\(text)", action: nil, keyEquivalent: "")

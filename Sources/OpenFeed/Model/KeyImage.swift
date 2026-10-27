@@ -112,6 +112,26 @@ enum KeyImage {
 
     // MARK: - 取 README
 
+    /// README 原文：摘要和找图都要它，落一份在盘上，一天里同一个仓库只取一次。
+    static func readmeText(slug: String, token: String?) async -> String? {
+        guard !slug.isEmpty else { return nil }
+        let file = Paths.readmes.appendingPathComponent(hash(slug) + ".md")
+        if let text = try? String(contentsOf: file, encoding: .utf8), !text.isEmpty { return text }
+        guard let text = await readme(slug: slug, token: token) else { return nil }
+        try? FileManager.default.createDirectory(at: Paths.readmes, withIntermediateDirectories: true)
+        try? text.write(to: file, atomically: true, encoding: .utf8)
+        return text
+    }
+
+    static func hash(_ text: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
+        }
+        return String(hash, radix: 16)
+    }
+
     private static func readme(slug: String, token: String?) async -> String? {
         guard let url = URL(string: "https://api.github.com/repos/\(slug)/readme") else { return nil }
         var request = URLRequest(url: url)

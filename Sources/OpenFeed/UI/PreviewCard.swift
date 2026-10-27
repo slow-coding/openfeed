@@ -9,6 +9,7 @@ struct PreviewCard: View {
 
     @State private var image: NSImage?
     @State private var tried = false
+    @State private var coreLine: String?
 
     static let width: CGFloat = 380
     static let imageHeight: CGFloat = 196
@@ -19,11 +20,18 @@ struct PreviewCard: View {
                 hero
                 VStack(alignment: .leading, spacing: 9) {
                     header
+                    if let coreLine {
+                        Text(coreLine)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if !item.summary.isEmpty {
                         Text(item.summary)
-                            .font(.system(size: 12))
+                            .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
-                            .lineLimit(7)
+                            .lineLimit(coreLine == nil ? 5 : 3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if !topics.isEmpty { tags }
@@ -44,8 +52,14 @@ struct PreviewCard: View {
         }
         .buttonStyle(.plain)
         .task(id: item.id) {
-            let data = await KeyImage.display(item)
-            if let data { image = NSImage(data: data) }
+            coreLine = item.coreLine ?? CoreValue.cached(item.id)
+            async let picture = KeyImage.display(item)
+            if let line = await CoreValue.line(for: item) {
+                coreLine = line
+                NotificationCenter.default.post(name: .openFeedCoreLine, object: nil,
+                                                userInfo: ["id": item.id, "line": line])
+            }
+            if let data = await picture { image = NSImage(data: data) }
             tried = true
         }
     }
