@@ -32,7 +32,8 @@ final class PreviewController {
         self.onOpen = onOpen
         self.onRate = onRate
 
-        let sameItem = currentItem?.id == item.id && panel?.isVisible == true
+        let wasVisible = panel?.isVisible == true
+        let sameItem = currentItem?.id == item.id && wasVisible
         currentItem = item
         if sameItem { startSizing(); return }
 
@@ -75,11 +76,16 @@ final class PreviewController {
             panel?.setFrame(frame, display: false)
         }
         position()
-        panel?.alphaValue = 0
         panel?.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
-            panel?.animator().alphaValue = 1
+        if !wasVisible {
+            // 从没显示到显示才淡入；已经在屏幕上就是直接换内容，不闪一下
+            panel?.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.1
+                panel?.animator().alphaValue = 1
+            }
+        } else {
+            panel?.alphaValue = 1
         }
         startSizing()
     }

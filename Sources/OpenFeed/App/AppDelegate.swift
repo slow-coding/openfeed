@@ -200,7 +200,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             })
         }
         hoverWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)
+        // 卡已经开着的时候立刻换内容——往下滑的时候，划到哪一条就该是哪一条；
+        // 只有第一次弹出才留 0.12 秒，免得鼠标路过整个列表时挨个闪。
+        if preview.isShown {
+            work.perform()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+        }
     }
 
     // MARK: - 菜单
