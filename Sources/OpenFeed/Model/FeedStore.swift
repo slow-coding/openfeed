@@ -308,7 +308,7 @@ final class FeedStore: ObservableObject {
 
         if succeeded {
             Task.detached(priority: .utility) { [items = merged.items] in
-                await KeyImage.prewarm(items: items, limit: 12)
+                await KeyImage.prewarm(items: items, limit: 20)
             }
             Task { [weak self] in
                 guard let self else { return }

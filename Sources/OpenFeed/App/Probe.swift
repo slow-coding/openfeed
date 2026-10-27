@@ -122,6 +122,18 @@ enum Probe {
             report["keySource"] = CoreValue.keySource
         }
 
+        if let index = arguments.firstIndex(of: "--swap-check"), index + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let repos = today.filter { $0.kind == .repo }
+            if repos.count > 2 {
+                let a = repos[0], b = repos[2]
+                _ = await KeyImage.display(a)
+                _ = await KeyImage.display(b)
+                report["swapCheck"] = await swapRender(a: a, b: b, directory: directory)
+            }
+        }
+
         if arguments.contains("--rate-check") {
             if let first = store.sections().first?.items.first {
                 let before = first.value
@@ -211,6 +223,46 @@ enum Probe {
         case .running(let text): return "running: \(text)"
         case .failed(let text): return "failed: \(text)"
         }
+    }
+
+    /// 同一块面板换一条内容：如果第二条还显示第一条的图，就是状态没重置。
+    @MainActor
+    private static func swapRender(a: FeedItem, b: FeedItem, directory: URL) async -> [String: Any] {
+        let size = NSSize(width: PreviewCard.width, height: 470)
+        let root = BackdropView(frame: NSRect(origin: .zero, size: size))
+        let host = NSHostingView(rootView: PreviewCard(item: a, onOpen: {}))
+        host.frame = root.bounds
+        root.addSubview(host)
+
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = root
+        window.orderFrontRegardless()
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        var shots: [[String: Any]] = []
+        if let png = capture(root) {
+            try? png.write(to: directory.appendingPathComponent("swap-a.png"))
+            shots.append(["item": a.title, "bytes": png.count])
+        }
+        host.rootView = PreviewCard(item: b, onOpen: {})
+        host.layoutSubtreeIfNeeded()
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        if let png = capture(root) {
+            try? png.write(to: directory.appendingPathComponent("swap-b.png"))
+            shots.append(["item": b.title, "bytes": png.count])
+        }
+        window.orderOut(nil)
+        return ["shots": shots,
+                "sameBytes": (shots.count == 2) && (shots[0]["bytes"] as? Int) == (shots[1]["bytes"] as? Int)]
+    }
+
+    @MainActor
+    private static func capture(_ view: NSView) -> Data? {
+        view.layoutSubtreeIfNeeded()
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep.representation(using: .png, properties: [:])
     }
 
     @MainActor

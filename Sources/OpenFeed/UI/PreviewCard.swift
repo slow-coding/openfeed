@@ -49,6 +49,9 @@ struct PreviewCard: View {
             }
             .padding(14)
         }
+        // 每条一份自己的状态：不然换到下一条时，image / coreLine 会沿用上一条，
+        // 看起来就是「图重复了」或者「没更新」。
+        .id(item.id)
         .frame(width: Self.width, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .background(.regularMaterial)
@@ -61,6 +64,12 @@ struct PreviewCard: View {
         // 整卡可点开；页脚那 5 颗星是自己的手势，会先接住点击，不会误开浏览器
         .onTapGesture { onOpen() }
         .task(id: item.id) {
+            image = nil
+            tried = false
+            // 分享卡通常已经缓存过，先顶上，别让那块空着等 README 解析
+            if let url = item.imageURL, let data = ImageStore.shared.cached("og|\(url.absoluteString)") {
+                image = NSImage(data: data)
+            }
             coreLine = item.coreLine ?? CoreValue.cached(item.id)
             async let picture = KeyImage.display(item)
             if let line = await CoreValue.line(for: item) {
