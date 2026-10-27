@@ -165,7 +165,8 @@ struct PreviewCard: View {
                     onRate(next)
                 } label: {
                     Image(systemName: n <= rating ? "star.fill" : "star")
-                        .font(.system(size: 11.5))
+                        .font(.system(size: 12.5))
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(color(for: n))
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())
@@ -182,7 +183,7 @@ struct PreviewCard: View {
 
     private func color(for n: Int) -> Color {
         if n <= rating { return T.star }
-        if let hoverStar, n <= hoverStar { return T.star.opacity(0.5) }
+        if let hoverStar, n <= hoverStar { return T.star.opacity(0.55) }
         return Color.secondary.opacity(0.4)
     }
 

@@ -110,7 +110,8 @@ struct FeedRow: View {
                             onRate(n == item.rating ? 0 : n)
                         } label: {
                             Image(systemName: n <= item.rating ? "star.fill" : "star")
-                                .font(.system(size: 10.5))
+                                .font(.system(size: 11.5))
+                                .symbolRenderingMode(.monochrome)
                                 .foregroundStyle(color(for: n))
                                 .frame(width: 12, height: 14)
                                 .contentShape(Rectangle())
@@ -135,8 +136,8 @@ struct FeedRow: View {
 
     private func color(for n: Int) -> Color {
         if n <= item.rating { return T.star }
-        if let hoverStar, n <= hoverStar { return T.star.opacity(0.5) }
-        return Color.secondary.opacity(0.55)
+        if let hoverStar, n <= hoverStar { return T.star.opacity(0.55) }
+        return Color.secondary.opacity(0.45)
     }
 
     /// 列表行右下角的复制键：跟代码块上那颗一样，停上去才出来。
