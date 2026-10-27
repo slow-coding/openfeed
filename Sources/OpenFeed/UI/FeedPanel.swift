@@ -195,6 +195,7 @@ struct FeedPanel: View {
                                     store.setHover(nil)
                                 }
                             },
+                            onRate: { stars in store.setRating(stars, for: item) },
                             forceHover: forceHoverID == item.id
                         )
                         .onDrop(of: [.text], delegate: RowDropDelegate(

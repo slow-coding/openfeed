@@ -201,6 +201,9 @@ enum Merge {
             if items[index].coreLine == nil {
                 items[index].coreLine = CoreValue.cached(items[index].id)
             }
+            if items[index].rating == 0 {
+                items[index].rating = Ratings.value(items[index].id)
+            }
         }
 
         // 偏好变了，没手动排过的那部分要跟着重排。

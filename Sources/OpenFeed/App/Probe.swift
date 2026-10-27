@@ -122,6 +122,24 @@ enum Probe {
             report["keySource"] = CoreValue.keySource
         }
 
+        if arguments.contains("--rate-check") {
+            if let first = store.sections().first?.items.first {
+                let before = first.value
+                store.setRating(4, for: first)
+                let after = store.item(first.id)
+                report["rateCheck"] = [
+                    "title": first.title,
+                    "valueBefore": Int(before.rounded()),
+                    "valueAfter": Int((after?.value ?? -1).rounded()),
+                    "rating": after?.rating ?? -1,
+                    "persisted": Ratings.value(first.id),
+                    "reasons": after?.reasons ?? [],
+                    "orderFrozen": store.snapshot.order[ImageStore.dayKey(first.foundAt)]?.count ?? 0
+                ]
+
+            }
+        }
+
         if arguments.contains("--images") {
             var results: [[String: Any]] = []
             for item in today.filter({ $0.kind == .repo }).prefix(5) {
@@ -166,7 +184,7 @@ enum Probe {
         }
 
         if let index = arguments.firstIndex(of: "--preview"), index + 1 < arguments.count,
-           let item = today.first {
+           let item = store.sections().first?.items.first {
             let directory = URL(fileURLWithPath: arguments[index + 1])
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             _ = await KeyImage.display(item)

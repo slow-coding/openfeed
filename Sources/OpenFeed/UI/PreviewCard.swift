@@ -6,51 +6,60 @@ import AppKit
 struct PreviewCard: View {
     let item: FeedItem
     let onOpen: () -> Void
+    var onRate: (Int) -> Void = { _ in }
 
     @State private var image: NSImage?
     @State private var tried = false
     @State private var coreLine: String?
+    @State private var rating: Int
+    @State private var hoverStar: Int?
+
+    init(item: FeedItem, onOpen: @escaping () -> Void, onRate: @escaping (Int) -> Void = { _ in }) {
+        self.item = item
+        self.onOpen = onOpen
+        self.onRate = onRate
+        _rating = State(initialValue: item.rating)
+    }
 
     static let width: CGFloat = 380
     static let imageHeight: CGFloat = 196
 
     var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 0) {
-                hero
-                VStack(alignment: .leading, spacing: 9) {
-                    header
-                    if let coreLine {
-                        Text(coreLine)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !item.summary.isEmpty {
-                        Text(item.summary)
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(coreLine == nil ? 5 : 3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !topics.isEmpty { tags }
-                    Divider().overlay(T.hairline)
-                    footer
+        VStack(alignment: .leading, spacing: 0) {
+            hero
+            VStack(alignment: .leading, spacing: 9) {
+                header
+                if let coreLine {
+                    Text(coreLine)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(14)
+                if !item.summary.isEmpty {
+                    Text(item.summary)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(coreLine == nil ? 5 : 3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !topics.isEmpty { tags }
+                Divider().overlay(T.hairline)
+                footer
             }
-            .frame(width: Self.width, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(T.hairline, lineWidth: 0.5)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(14)
         }
-        .buttonStyle(.plain)
+        .frame(width: Self.width, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(T.hairline, lineWidth: 0.5)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // 整卡可点开；页脚那 5 颗星是自己的手势，会先接住点击，不会误开浏览器
+        .onTapGesture { onOpen() }
         .task(id: item.id) {
             coreLine = item.coreLine ?? CoreValue.cached(item.id)
             async let picture = KeyImage.display(item)
@@ -146,6 +155,37 @@ struct PreviewCard: View {
         }
     }
 
+    /// 打分放在页脚右侧：不占高度，也不会跟「打开」抢点击。
+    private var stars: some View {
+        HStack(spacing: 3) {
+            ForEach(1...5, id: \.self) { n in
+                Button {
+                    let next = (n == rating) ? 0 : n
+                    rating = next
+                    onRate(next)
+                } label: {
+                    Image(systemName: n <= rating ? "star.fill" : "star")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(color(for: n))
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { inside in
+                    if inside { hoverStar = n } else if hoverStar == n { hoverStar = nil }
+                }
+                .help(n == rating ? "点一下取消" : "打 \(n) 星")
+            }
+        }
+        .animation(.easeOut(duration: 0.08), value: rating)
+    }
+
+    private func color(for n: Int) -> Color {
+        if n <= rating { return T.accent }
+        if let hoverStar, n <= hoverStar { return T.accent.opacity(0.55) }
+        return Color.secondary.opacity(0.4)
+    }
+
     private var footer: some View {
         HStack(spacing: 6) {
             Text("价值 \(Int(item.value.rounded()))")
@@ -159,7 +199,8 @@ struct PreviewCard: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            stars
         }
     }
 }

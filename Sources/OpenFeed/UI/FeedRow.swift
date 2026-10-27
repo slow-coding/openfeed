@@ -8,6 +8,7 @@ struct FeedRow: View {
     let onOpen: () -> Void
     let onMute: () -> Void
     let onHover: (Bool) -> Void
+    let onRate: (Int) -> Void
     /// 自检用：不真的悬停也能看到悬停时的样子
     var forceHover: Bool = false
 
@@ -76,6 +77,18 @@ struct FeedRow: View {
             Button("复制链接与一句话") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(item.copyText, forType: .string)
+            }
+            Divider()
+            Menu("评分") {
+                ForEach(1...5, id: \.self) { n in
+                    Button("\(String(repeating: "★", count: n))\(item.rating == n ? "（当前）" : "")") {
+                        onRate(n)
+                    }
+                }
+                if item.rating > 0 {
+                    Divider()
+                    Button("清除评分") { onRate(0) }
+                }
             }
             if item.isRepo {
                 Divider()
@@ -154,6 +167,12 @@ struct FeedRow: View {
                 separator
                 Text("↑\(delta.starText)")
                     .foregroundStyle(T.lane(item.lane).opacity(0.9))
+            }
+            if item.rating > 0 {
+                separator
+                Text("\(String(repeating: "★", count: item.rating))")
+                    .foregroundStyle(T.accent.opacity(0.9))
+                    .font(.system(size: T.metaSize - 0.5))
             }
             if item.visitedAt == nil, item.isNewToday {
                 separator

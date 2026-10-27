@@ -147,6 +147,7 @@ enum Paths {
     static var seen: URL { root.appendingPathComponent("seen.json") }
     static var prefs: URL { root.appendingPathComponent("prefs.json") }
     static var summaries: URL { root.appendingPathComponent("summaries.json") }
+    static var ratings: URL { root.appendingPathComponent("ratings.json") }
     static var readmes: URL { cache.appendingPathComponent("readmes", isDirectory: true) }
     static var cache: URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]

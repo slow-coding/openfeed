@@ -55,6 +55,17 @@ struct Preferences: Codable {
         updatedAt = Date()
     }
 
+    /// 打分：4~5 星给这条线加分，1~2 星扣分，3 星算是「一般」不动。
+    mutating func noteRating(_ item: FeedItem, stars: Int) {
+        let delta = (Double(stars) - 3) * 0.05
+        guard delta != 0 else { return }
+        let key = "lane:\(item.lane)"
+        var next = (weights[key] ?? 0) + delta
+        next = min(1.6, max(-1.6, next))
+        weights[key] = next
+        updatedAt = Date()
+    }
+
     /// 点开一条 = 弱信号，比拖拽轻一个量级。
     mutating func noteClick(_ item: FeedItem) {
         let key = "lane:\(item.lane)"
@@ -116,6 +127,13 @@ enum ValueModel {
             let contribution = amount * (baseWeight + learned * 14)
             total += contribution
             if contribution > 0.3 { parts.append((contribution, reason(key, item: item, amount: amount))) }
+        }
+
+        // 你打的分是明确信号：5 星 +8，1 星 -8
+        if item.rating > 0 {
+            let lift = Double(item.rating - 3) * 4
+            total += lift
+            if lift > 0 { parts.append((lift, "你打了 \(item.rating) 星")) }
         }
 
         if item.isExploration, !prefs.isPromoted(lane: item.lane) {

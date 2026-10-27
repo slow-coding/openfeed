@@ -186,6 +186,24 @@ final class FeedStore: ObservableObject {
         if changed { save() }
     }
 
+    /// 打分。当场把今天的顺序钉住：正在评的时候列表不该跳。
+    func setRating(_ stars: Int, for item: FeedItem) {
+        let key = ImageStore.dayKey(item.foundAt)
+        if snapshot.order[key] == nil {
+            let current = sections().first { Calendar.current.isDate($0.day, inSameDayAs: item.foundAt) }?
+                .items.map { $0.id } ?? []
+            if !current.isEmpty { snapshot.order[key] = current }
+        }
+        Ratings.set(item.id, stars: stars)
+        if let index = snapshot.items.firstIndex(where: { $0.id == item.id }) {
+            snapshot.items[index].rating = max(0, min(5, stars))
+            if stars > 0 { prefs.noteRating(item, stars: stars) }
+            prefs.save()
+        }
+        rescore()
+        save()
+    }
+
     func resetPreferences() {
         prefs = Preferences()
         prefs.save()

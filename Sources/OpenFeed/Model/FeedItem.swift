@@ -47,6 +47,8 @@ struct FeedItem: Codable, Identifiable, Hashable {
     var reasons: [String] = []
     /// 「它到底做了什么」那一句话
     var coreLine: String?
+    /// 你打的分，1~5，0 = 没打
+    var rating: Int = 0
 
     var isRepo: Bool { kind == .repo }
     var isNewToday: Bool { Calendar.current.isDateInToday(foundAt) }
@@ -77,14 +79,14 @@ struct FeedItem: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, kind, title, subtitle, summary, url, imageURL, avatarURL, keyImagePath
         case stars, language, starsDelta, createdAt, foundAt, lane, visitedAt
-        case isExploration, value, reasons, coreLine
+        case isExploration, value, reasons, coreLine, rating
     }
 
     init(id: String, kind: FeedKind, title: String, subtitle: String, summary: String, url: URL,
          imageURL: URL?, avatarURL: URL?, keyImagePath: String? = nil, stars: Int?, language: String?,
          starsDelta: Int?, createdAt: Date, foundAt: Date, lane: String, visitedAt: Date? = nil,
          isExploration: Bool = false, value: Double = 0, reasons: [String] = [],
-         coreLine: String? = nil) {
+         coreLine: String? = nil, rating: Int = 0) {
         self.id = id; self.kind = kind; self.title = title; self.subtitle = subtitle
         self.summary = summary; self.url = url; self.imageURL = imageURL; self.avatarURL = avatarURL
         self.keyImagePath = keyImagePath; self.stars = stars; self.language = language
@@ -116,6 +118,7 @@ struct FeedItem: Codable, Identifiable, Hashable {
         value = try box.decodeIfPresent(Double.self, forKey: .value) ?? 0
         reasons = try box.decodeIfPresent([String].self, forKey: .reasons) ?? []
         coreLine = try box.decodeIfPresent(String.self, forKey: .coreLine)
+        rating = try box.decodeIfPresent(Int.self, forKey: .rating) ?? 0
     }
 }
 

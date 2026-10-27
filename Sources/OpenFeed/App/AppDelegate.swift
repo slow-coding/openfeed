@@ -178,13 +178,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let work = DispatchWorkItem { [weak self] in
             guard let self, let window = self.popover.contentViewController?.view.window else { return }
-            self.preview.show(item: item, beside: window) { [weak self] item in
+            self.preview.show(item: item, beside: window, onOpen: { [weak self] item in
                 guard let self else { return }
                 self.store.markVisited(item)
                 NSWorkspace.shared.open(item.url)
                 self.popover.performClose(nil)
                 self.preview.hide()
-            }
+            }, onRate: { [weak self] item, stars in
+                self?.store.setRating(stars, for: item)
+            })
         }
         hoverWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)

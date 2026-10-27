@@ -15,6 +15,7 @@ final class PreviewController {
     private var anchorWindow: NSWindow?
     private var currentID: String?
     private var onOpen: ((FeedItem) -> Void)?
+    private var onRate: ((FeedItem, Int) -> Void)?
 
     var isShown: Bool { panel?.isVisible ?? false }
 
@@ -24,16 +25,22 @@ final class PreviewController {
         return "\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))"
     }
 
-    func show(item: FeedItem, beside window: NSWindow, onOpen: @escaping (FeedItem) -> Void) {
+    func show(item: FeedItem, beside window: NSWindow,
+              onOpen: @escaping (FeedItem) -> Void,
+              onRate: @escaping (FeedItem, Int) -> Void = { _, _ in }) {
         if currentID == item.id, panel?.isVisible == true { return }
         currentID = item.id
         anchorWindow = window
         self.onOpen = onOpen
 
-        let card = PreviewCard(item: item) { [weak self] in
+        self.onRate = onRate
+        let card = PreviewCard(item: item, onOpen: { [weak self] in
             guard let self, let item = self.currentItem else { return }
             self.onOpen?(item)
-        }
+        }, onRate: { [weak self] stars in
+            guard let self, let item = self.currentItem else { return }
+            self.onRate?(item, stars)
+        })
         currentItem = item
 
         if panel == nil {
