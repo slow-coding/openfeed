@@ -134,8 +134,8 @@ struct FeedRow: View {
     }
 
     private func color(for n: Int) -> Color {
-        if n <= item.rating { return T.accent }
-        if let hoverStar, n <= hoverStar { return T.accent.opacity(0.55) }
+        if n <= item.rating { return T.star }
+        if let hoverStar, n <= hoverStar { return T.star.opacity(0.5) }
         return Color.secondary.opacity(0.55)
     }
 
@@ -213,7 +213,7 @@ struct FeedRow: View {
             if item.rating > 0 {
                 separator
                 Text("\(String(repeating: "★", count: item.rating))")
-                    .foregroundStyle(T.accent.opacity(0.9))
+                    .foregroundStyle(T.star)
                     .font(.system(size: T.metaSize - 0.5))
             }
             if item.visitedAt == nil, item.isNewToday {

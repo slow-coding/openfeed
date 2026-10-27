@@ -31,6 +31,12 @@ enum T {
         light: NSColor(srgbRed: 0.24, green: 0.36, blue: 0.86, alpha: 1)
     )
 
+    /// 打分的星：暖黄，选中就亮起来（蓝的看起来像链接，不像评价）
+    static let star = dynamic(
+        dark: NSColor(srgbRed: 1.00, green: 0.79, blue: 0.28, alpha: 1),
+        light: NSColor(srgbRed: 0.80, green: 0.54, blue: 0.00, alpha: 1)
+    )
+
     static let hairline = dynamic(
         dark: NSColor.white.withAlphaComponent(0.10),
         light: NSColor.black.withAlphaComponent(0.09)

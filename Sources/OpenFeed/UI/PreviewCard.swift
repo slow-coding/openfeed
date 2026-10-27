@@ -181,8 +181,8 @@ struct PreviewCard: View {
     }
 
     private func color(for n: Int) -> Color {
-        if n <= rating { return T.accent }
-        if let hoverStar, n <= hoverStar { return T.accent.opacity(0.55) }
+        if n <= rating { return T.star }
+        if let hoverStar, n <= hoverStar { return T.star.opacity(0.5) }
         return Color.secondary.opacity(0.4)
     }
 
