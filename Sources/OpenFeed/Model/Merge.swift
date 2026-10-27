@@ -60,7 +60,10 @@ enum Merge {
             if isFirstSighting {
                 // 「还在涨」那几条查询一把能拉回几百个老项目：第一次只记账，不上版面。
                 // 从第二天起它们有了星数差，真涨起来的才冒头。
-                if hit.velocity { continue }
+                if hit.velocity {
+                    index.repos[key] = SeenRepo(stars: hit.stars, firstSeen: now, lastSeen: now)
+                    continue
+                }
             } else if let existingItem {
                 // 见过的项目不再进今天的流，只有这几天又涨了不少才重新冒上来。
                 let days = now.timeIntervalSince(existingItem.foundAt) / 86_400

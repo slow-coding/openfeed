@@ -24,9 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         render()
         tick()
 
-        // 第一次跑、盘上一份都没有：先拉一批，别让人打开看见空面板。
+        // 第一次跑、盘上一份都没有：先拉一批，拉完自己弹一次面板，别让人对着一个空图标猜。
         if store.snapshot.items.isEmpty {
-            Task { await refresh(manual: false) }
+            Task {
+                await refresh(manual: false)
+                if !store.snapshot.items.isEmpty { togglePopover() }
+            }
         }
 
         if UserDefaults.standard.object(forKey: "autoStart") == nil {

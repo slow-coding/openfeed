@@ -18,6 +18,13 @@ if Probe.isRequested {
     exit(0)
 }
 
+// 只允许一个实例：自启拉起来的那个已经在跑时，别再开第二个菜单栏格子。
+if CommandLine.arguments.count == 1 {
+    let others = NSRunningApplication.runningApplications(withBundleIdentifier: "app.openfeed.macos")
+        .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+    if !others.isEmpty { exit(0) }
+}
+
 let delegate = MainActor.assumeIsolated { AppDelegate() }
 application.delegate = delegate
 application.setActivationPolicy(.accessory)
