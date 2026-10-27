@@ -27,12 +27,17 @@ struct SeenIndex: Codable {
 }
 
 enum Merge {
-    /// 一天的窗口：新东西进来，老东西不重复刷屏。
-    static let keepDays = 10
+    /// 只留今天和昨天：他自己说的，只看当天，最多回退一天。
+    static let keepDays = 2
+    /// 你的六条线。不在这里面的都是探索项。
+    static let coreLanes: Set<String> = [
+        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "生成式界面", "动效视觉", "关注项目", "讨论"
+    ]
 
     static func run(repos: [RepoHit], releases: [ReleaseHit], stories: [StoryHit],
-                    existing: [FeedItem], seen: SeenIndex, now: Date)
-        -> (items: [FeedItem], seen: SeenIndex, added: Int) {
+                    existing: [FeedItem], seen: SeenIndex, prefs: Preferences,
+                    order: [String: [String]], now: Date)
+        -> (items: [FeedItem], seen: SeenIndex, added: Int, order: [String: [String]]) {
         var index = seen
         let muted = seen.mutedSet
         var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
@@ -45,6 +50,8 @@ enum Merge {
             if let old = uniqueRepos[key], old.stars >= hit.stars { continue }
             uniqueRepos[key] = hit
         }
+
+        var freshIDs: [String] = []
 
         for (key, hit) in uniqueRepos {
             guard !muted.contains(key) else { continue }
@@ -69,7 +76,7 @@ enum Merge {
                 let days = now.timeIntervalSince(existingItem.foundAt) / 86_400
                 if !(climbed && days >= 3) { continue }
             } else {
-                // 上一轮被 60 条上限挤掉的：只有涨星才给它第二次机会。
+                // 上一轮被上限挤掉的：只有涨星才给它第二次机会。
                 if !climbed { continue }
             }
 
@@ -79,8 +86,8 @@ enum Merge {
                 lastSeen: now
             )
 
-            let score = Scoring.repo(stars: hit.stars, delta: delta, createdAt: hit.createdAt, now: now)
-            let item = FeedItem(
+            let exploration = !coreLanes.contains(hit.lane)
+            var item = FeedItem(
                 id: "repo:\(key)",
                 kind: .repo,
                 title: hit.fullName.split(separator: "/").last.map(String.init) ?? hit.fullName,
@@ -94,18 +101,21 @@ enum Merge {
                 starsDelta: delta,
                 createdAt: hit.createdAt,
                 foundAt: now,
-                score: score,
                 lane: hit.lane,
-                visitedAt: existingItem?.visitedAt
+                visitedAt: existingItem?.visitedAt,
+                isExploration: exploration
             )
-            if byID[item.id] == nil { added += 1 }
+            let scored = ValueModel.score(item, prefs: prefs, now: now)
+            item.value = scored.value
+            item.reasons = scored.reasons
+            if byID[item.id] == nil { added += 1; freshIDs.append(item.id) }
             byID[item.id] = item
         }
 
         for hit in releases {
             let key = "release:\(hit.repo.lowercased())@\(hit.title)"
             if byID[key] != nil { continue }
-            let item = FeedItem(
+            var item = FeedItem(
                 id: key,
                 kind: .release,
                 title: hit.title,
@@ -119,17 +129,20 @@ enum Merge {
                 starsDelta: nil,
                 createdAt: hit.publishedAt,
                 foundAt: now,
-                score: 26 + Scoring.ageBonus(hit.publishedAt, now: now),
                 lane: "关注项目"
             )
+            let scored = ValueModel.score(item, prefs: prefs, now: now)
+            item.value = scored.value
+            item.reasons = scored.reasons
             byID[key] = item
             added += 1
+            freshIDs.append(item.id)
         }
 
         for hit in stories {
             let key = "story:\(hit.url.absoluteString)"
             if byID[key] != nil { continue }
-            let item = FeedItem(
+            var item = FeedItem(
                 id: key,
                 kind: .story,
                 title: hit.title,
@@ -143,43 +156,76 @@ enum Merge {
                 starsDelta: nil,
                 createdAt: hit.publishedAt,
                 foundAt: now,
-                score: 12 + min(20, Double(hit.points) / 25) + Scoring.ageBonus(hit.publishedAt, now: now),
                 lane: "讨论"
             )
+            let scored = ValueModel.score(item, prefs: prefs, now: now)
+            item.value = scored.value
+            item.reasons = scored.reasons
             byID[key] = item
             added += 1
+            freshIDs.append(item.id)
         }
 
-        // 第一次拉会一口气几百条，那不是 feed 是仓库列表。一天最多进 60 条，按分数挑。
+        // 一天最多进 60 条，按价值挑；被挤掉的照样在 seen 里，只是今天不上版面。
         let existingIDs = Set(existing.map { $0.id })
         let fresh = byID.values.filter { $0.foundAt == now && !existingIDs.contains($0.id) }
         if fresh.count > 60 {
-            let keep = Set(fresh.sorted { $0.score > $1.score }.prefix(60).map { $0.id })
+            let keep = Set(fresh.sorted { $0.value > $1.value }.prefix(60).map { $0.id })
             for item in fresh where !keep.contains(item.id) {
                 byID.removeValue(forKey: item.id)
             }
         }
 
         let cutoff = now.addingTimeInterval(-Double(keepDays) * 86_400)
-        var items = byID.values
-            .filter { $0.foundAt >= cutoff && !$0.muted }
-            .sorted { $0.foundAt > $1.foundAt }
+        var items = byID.values.filter { $0.foundAt >= cutoff }
 
-        // 同一天里按分数排，跨天按发现时间分节。
+        // 一天最多留 60 条：一天里手动点多几次，不能越堆越多。
+        let todayKeyForCap = ImageStore.dayKey(now)
+        let todayItems = items.filter { ImageStore.dayKey($0.foundAt) == todayKeyForCap }
+        if todayItems.count > 60 {
+            let keep = Set(todayItems.sorted { lhs, rhs in
+                if (lhs.visitedAt != nil) != (rhs.visitedAt != nil) { return lhs.visitedAt != nil }
+                return lhs.value > rhs.value
+            }.prefix(60).map { $0.id })
+            for item in todayItems where !keep.contains(item.id) {
+                byID.removeValue(forKey: item.id)
+            }
+            items = items.filter { keep.contains($0.id) || ImageStore.dayKey($0.foundAt) != todayKeyForCap }
+        }
+
+        // 偏好会变：每次拉取都按当前权重重算一遍价值，排序才是「动态」的。
+        for index in items.indices {
+            let scored = ValueModel.score(items[index], prefs: prefs, now: now)
+            items[index].value = scored.value
+            items[index].reasons = scored.reasons
+        }
+
+        // 偏好变了，没手动排过的那部分要跟着重排。
         items.sort { lhs, rhs in
             if Calendar.current.isDate(lhs.foundAt, inSameDayAs: rhs.foundAt) {
-                return lhs.score > rhs.score
+                return lhs.value > rhs.value
             }
             return lhs.foundAt > rhs.foundAt
         }
-        if items.count > 400 {
-            items = Array(items.prefix(400))
-        }
-        return (items, index, added)
-    }
-}
+        if items.count > 400 { items = Array(items.prefix(400)) }
 
-extension Merge {
+        // 今天新进来的顶在最上面，剩下的保持你拖过的顺序。
+        let todayKey = ImageStore.dayKey(now)
+        let keptToday = (order[todayKey] ?? []).filter { id in items.contains { $0.id == id } }
+        let newToday = items
+            .filter { ImageStore.dayKey($0.foundAt) == todayKey && !keptToday.contains($0.id) }
+            .sorted { $0.value > $1.value }
+            .map { $0.id }
+        var nextOrder = order
+        nextOrder[todayKey] = newToday + keptToday
+        // 过期的日子不再占地方
+        for key in nextOrder.keys where key < ImageStore.dayKey(cutoff) {
+            nextOrder.removeValue(forKey: key)
+        }
+
+        return (items, index, added, nextOrder)
+    }
+
     static func isList(_ fullName: String, description: String) -> Bool {
         let name = fullName.lowercased()
         if name.contains("awesome-") || name.hasSuffix("/awesome") { return true }
@@ -194,16 +240,6 @@ enum Scoring {
     static func ageBonus(_ date: Date, now: Date) -> Double {
         let days = now.timeIntervalSince(date) / 86_400
         return max(0, 14 - days)
-    }
-
-    static func repo(stars: Int, delta: Int?, createdAt: Date, now: Date) -> Double {
-        var score = 6 * log10(1 + Double(stars))
-        if let delta, delta > 0 {
-            score += 9 * log10(1 + Double(delta))
-        }
-        let days = now.timeIntervalSince(createdAt) / 86_400
-        score += max(0, 30 - days) * 1.1
-        return score
     }
 }
 

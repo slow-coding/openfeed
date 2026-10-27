@@ -130,7 +130,7 @@ struct Fetcher {
         else { return [] }
         return releases
             .filter { $0.publishedAt >= since }
-            .prefix(2)
+            .prefix(1)
             .compactMap { release in
                 guard let url = release.htmlURL else { return nil }
                 let title = release.name?.isEmpty == false ? release.name! : release.tagName

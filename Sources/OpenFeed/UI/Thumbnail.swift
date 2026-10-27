@@ -9,7 +9,12 @@ final class ThumbCache {
     private let queue = DispatchQueue(label: "openfeed.thumbs", qos: .utility, attributes: .concurrent)
     private static let gate = DispatchSemaphore(value: 4)
 
-    private var directory: URL { Paths.thumbnails }
+    private var directory: URL { Paths.avatars }
+
+    /// 清空图片缓存时连内存里那份一起丢掉。
+    func forget() {
+        memory.removeAllObjects()
+    }
 
     func cached(_ url: URL) -> NSImage? {
         memory.object(forKey: url.absoluteString as NSString)

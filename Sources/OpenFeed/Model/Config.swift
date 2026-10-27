@@ -60,6 +60,16 @@ struct FeedConfig: Codable {
               must: ["webgl", "shader", "three", "graphics", "canvas"]),
         .init(lane: "动效视觉", q: "topic:animation stars:>250 created:>{since}", days: 90,
               must: ["animation", "motion", "css", "svg", "transition"]),
+        // 下面几条是「我没提过、但你可能想要」的探索线。它们不按你的兴趣线出，混在流里；
+        // 你把它们拖上去或者点开，那条线的权重就涨，涨到 0.5 以上就不再当探索项。
+        .init(lane: "本地优先", q: "topic:local-first stars:>300 created:>{since}", days: 60,
+              limit: 8, must: ["local-first", "offline", "sync", "crdt", "peer"]),
+        .init(lane: "端侧模型", q: "topic:on-device-ml stars:>200 created:>{since}", days: 60,
+              limit: 8, must: ["on-device", "mobile", "local", "coreml", "mlx", "edge"]),
+        .init(lane: "评测与观测", q: "topic:llm-evaluation stars:>150 created:>{since}", days: 60,
+              limit: 8, must: ["eval", "benchmark", "observability", "trace", "guardrail"]),
+        .init(lane: "设计工程", q: "topic:design-engineering stars:>200 created:>{since}", days: 60,
+              limit: 8, must: ["design", "ui", "component", "typography", "interface"]),
         // 老的但还在涨：不按创建日筛，靠本地星数差（见 Scoring）
         .init(lane: "上下文记忆", q: "topic:agent-memory stars:>1000 pushed:>{recent}", sort: "updated",
               limit: 20, needsAuth: true,
@@ -68,7 +78,7 @@ struct FeedConfig: Codable {
         .init(lane: "生成式界面", q: "topic:generative-ui stars:>300 pushed:>{recent}", sort: "updated", limit: 20, needsAuth: true),
         .init(lane: "记忆图谱", q: "topic:knowledge-graph stars:>1500 pushed:>{recent}", sort: "updated",
               limit: 20, needsAuth: true,
-              must: ["memory", "rag", "llm", "agent", "ontology", "embedding"])
+              must: ["memory", "rag", "llm", "agent", "ontology", "embedding"]),
     ]
 
     /// 这些有版本就够了，不需要它天天上新闻。release 走 atom，不占 API 额度。
@@ -130,18 +140,22 @@ struct FeedConfig: Codable {
     }
 }
 
-/// 数据都在 Application Support，不进工程、不进 iCloud。
+/// 状态在 Application Support；能重新生成的图在 Caches（删了不心疼，也方便一键清）。
 enum Paths {
     static var root: URL { FeedConfig.directory }
     static var feed: URL { root.appendingPathComponent("feed.json") }
     static var seen: URL { root.appendingPathComponent("seen.json") }
-    static var thumbnails: URL { root.appendingPathComponent("thumbs", isDirectory: true) }
+    static var prefs: URL { root.appendingPathComponent("prefs.json") }
     static var cache: URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("OpenFeed", isDirectory: true)
     }
+    static var images: URL { cache.appendingPathComponent("images", isDirectory: true) }
+    static var avatars: URL { cache.appendingPathComponent("avatars", isDirectory: true) }
+    static var imageManifest: URL { cache.appendingPathComponent("images.json") }
     static func ensure() {
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
+        for directory in [root, cache, images, avatars] {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
     }
 }

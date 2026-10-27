@@ -36,6 +36,10 @@ enum Probe {
         for item in today { byLane[item.lane, default: 0] += 1 }
 
         report["seenRepos"] = SeenIndex.load().repos.count
+        report["cache"] = ImageStore.shared.totalText
+        report["prefsPairs"] = store.prefs.pairs
+        report["prefsWeights"] = store.prefs.weights.sorted { $0.value > $1.value }.prefix(8)
+            .map { "\($0.key)=\(String(format: "%.2f", $0.value))" }
         report["items"] = store.items.count
         report["today"] = today.count
         report["byKind"] = byKind
@@ -51,8 +55,67 @@ enum Probe {
                 "stars": item.stars ?? -1,
                 "delta": item.starsDelta ?? -1,
                 "age": item.createdAt.agoText,
+                "value": Int(item.value.rounded()),
+                "reasons": item.reasons,
+                "explore": item.isExploration,
                 "summary": String(item.summary.prefix(90))
             ]
+        }
+
+        if arguments.contains("--cache-check") {
+            let store = ImageStore.shared
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd"
+            let today = fmt.string(from: Date())
+            let yesterday = fmt.string(from: Date().addingTimeInterval(-86_400))
+            let old = fmt.string(from: Date().addingTimeInterval(-3 * 86_400))
+            _ = store.store(Data(repeating: 1, count: 2048), key: "test|today", itemID: nil, day: today)
+            _ = store.store(Data(repeating: 1, count: 2048), key: "test|yesterday", itemID: nil, day: yesterday)
+            _ = store.store(Data(repeating: 1, count: 2048), key: "test|old", itemID: nil, day: old)
+            let removed = store.prune(keeping: [today, yesterday])
+            report["cacheCheck"] = [
+                "removed": removed,
+                "todayStillCached": store.cached("test|today") != nil,
+                "yesterdayStillCached": store.cached("test|yesterday") != nil,
+                "oldStillCached": store.cached("test|old") != nil
+            ]
+        }
+
+        if arguments.contains("--learn-check") {
+            let todayItems = store.sections().first?.items ?? []
+            if todayItems.count > 5 {
+                let moved = todayItems[4]
+                let target = todayItems[0]
+                let before = moved.value
+                store.move(moved.id, before: target.id, day: store.sections()[0].day)
+                let after = store.item(moved.id)?.value ?? -1
+                report["moveCheck"] = [
+                    "moved": moved.title,
+                    "above": target.title,
+                    "valueBefore": Int(before.rounded()),
+                    "valueAfter": Int(after.rounded()),
+                    "newOrder": Array(store.sections()[0].items.prefix(3).map { $0.title }),
+                    "pairs": store.prefs.pairs,
+                    "weights": store.prefs.weights.sorted { abs($0.value) > abs($1.value) }.prefix(6)
+                        .map { "\($0.key)=\(String(format: "%.2f", $0.value))" }
+                ]
+            }
+        }
+
+        if arguments.contains("--images") {
+            var results: [[String: Any]] = []
+            for item in today.filter({ $0.kind == .repo }).prefix(5) {
+                let started = Date()
+                let data = await KeyImage.display(item)
+                results.append([
+                    "repo": item.repoSlug ?? item.title,
+                    "bytes": data?.count ?? -1,
+                    "ms": Int(Date().timeIntervalSince(started) * 1000),
+                    "key": item.keyImagePath ?? ""
+                ])
+            }
+            report["images"] = results
+            report["cacheAfter"] = ImageStore.shared.totalText
         }
 
         if arguments.contains("--schedule") {
@@ -82,6 +145,19 @@ enum Probe {
             report["snapshotDir"] = directory.path
         }
 
+        if let index = arguments.firstIndex(of: "--preview"), index + 1 < arguments.count,
+           let item = today.first {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            _ = await KeyImage.display(item)
+            for (name, appearance) in [("preview-dark", NSAppearance(named: .darkAqua)),
+                                       ("preview-light", NSAppearance(named: .aqua))] {
+                if let data = await renderPreview(item: item, appearance: appearance) {
+                    try? data.write(to: directory.appendingPathComponent("\(name).png"))
+                }
+            }
+        }
+
         if let data = try? JSONSerialization.data(withJSONObject: report,
                                                    options: [.prettyPrinted, .sortedKeys]) {
             FileHandle.standardOutput.write(data)
@@ -97,6 +173,39 @@ enum Probe {
         case .running(let text): return "running: \(text)"
         case .failed(let text): return "failed: \(text)"
         }
+    }
+
+    @MainActor
+    private static func renderPreview(item: FeedItem, appearance: NSAppearance?) async -> Data? {
+        var size = PreviewController.size
+        let root = BackdropView(frame: NSRect(origin: .zero, size: size))
+        let card = PreviewCard(item: item, onOpen: {})
+        let host = NSHostingView(rootView: card)
+        host.frame = NSRect(x: 0, y: 0, width: size.width, height: size.height)
+        host.layoutSubtreeIfNeeded()
+        let fit = host.fittingSize
+        if fit.height > 200 {
+            size = NSSize(width: max(size.width, fit.width), height: fit.height)
+            root.frame = NSRect(origin: .zero, size: size)
+            host.frame = root.bounds
+        }
+        host.autoresizingMask = [.width, .height]
+        root.addSubview(host)
+
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = appearance
+        window.contentView = root
+        window.orderFrontRegardless()
+        root.layoutSubtreeIfNeeded()
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        guard let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds) else {
+            window.orderOut(nil)
+            return nil
+        }
+        root.cacheDisplay(in: root.bounds, to: rep)
+        window.orderOut(nil)
+        return rep.representation(using: .png, properties: [:])
     }
 
     /// 把一个真的窗口摆到屏幕外再截图：这样 SwiftUI 的异步任务（缩略图）才会真的跑。

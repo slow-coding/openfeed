@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var ticker: Timer?
     private var isRefreshing = false
     private var observers: [AnyCancellable] = []
+    private let preview = PreviewController()
+    private var hoverWork: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         store.objectWillChange
@@ -17,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in
                 DispatchQueue.main.async { self?.render() }
             }
+            .store(in: &observers)
+        store.$hoveredID
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.schedulePreview() }
             .store(in: &observers)
         setupStatusItem()
         setupPopover()
@@ -47,7 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 guard let self else { return }
                 self.togglePopover()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                var previewProbe = "hidden"
+                if let first = self.store.sections().first?.items.first,
+                   let window = self.popover.contentViewController?.view.window {
+                    self.preview.show(item: first, beside: window) { _ in }
+                    previewProbe = "\(self.preview.frameDescription) shown=\(self.preview.isShown)"
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                     let button = self.statusItem.button
                     let report: [String: Any] = [
                         "popoverShown": self.popover.isShown,
@@ -58,7 +70,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         "title": button?.attributedTitle.string ?? "",
                         "imageSize": button?.image.map { "\($0.size)" } ?? "nil",
                         "items": self.store.items.count,
-                        "unread": self.store.unread(todayOnly: true)
+                        "unread": self.store.unread(todayOnly: true),
+                        "previewAtShow": previewProbe,
+                        "cache": self.store.cacheText,
+                        "pairs": self.store.prefs.pairs
                     ]
                     if let data = try? JSONSerialization.data(withJSONObject: report,
                                                               options: [.prettyPrinted, .sortedKeys]) {
@@ -146,10 +161,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         if popover.isShown {
             popover.performClose(nil)
+            preview.hide()
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
         }
+    }
+
+    /// 悬停 180ms 才弹：划过一路不闪。
+    private func schedulePreview() {
+        hoverWork?.cancel()
+        guard let item = store.hoveredItem, popover.isShown else {
+            preview.hide()
+            return
+        }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let window = self.popover.contentViewController?.view.window else { return }
+            self.preview.show(item: item, beside: window) { [weak self] item in
+                guard let self else { return }
+                self.store.markVisited(item)
+                NSWorkspace.shared.open(item.url)
+                self.popover.performClose(nil)
+                self.preview.hide()
+            }
+        }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: work)
     }
 
     // MARK: - 菜单
@@ -194,6 +231,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         folderItem.target = self
         menu.addItem(folderItem)
 
+        let cacheItem = NSMenuItem(title: "图片缓存 \(store.cacheText) · 清空", action: #selector(menuClearCache), keyEquivalent: "")
+        cacheItem.target = self
+        menu.addItem(cacheItem)
+
+        let resetItem = NSMenuItem(title: "重置排序与偏好", action: #selector(menuResetPrefs), keyEquivalent: "")
+        resetItem.target = self
+        menu.addItem(resetItem)
+
         let authItem = NSMenuItem(title: "GitHub：\(Auth.source)", action: nil, keyEquivalent: "")
         authItem.isEnabled = false
         menu.addItem(authItem)
@@ -234,6 +279,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.setHour(sender.tag)
     }
 
+    @objc private func menuClearCache() {
+        store.clearCache()
+    }
+
+    @objc private func menuResetPrefs() {
+        store.resetPreferences()
+    }
+
     @objc private func menuOpenConfig() {
         NSWorkspace.shared.open(FeedConfig.fileURL)
     }
@@ -249,6 +302,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.popover.performClose(nil)
+            self?.preview.hide()
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main

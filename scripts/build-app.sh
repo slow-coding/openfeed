@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 APP_NAME="OpenFeed"
 VERSION="$(tr -d '[:space:]' < VERSION 2>/dev/null || echo 1.0.0)"
-CACHE="$HOME/Library/Caches/openfeed/swiftpm"
+CACHE="$HOME/Library/Caches/openfeed-build/swiftpm"
 STAGE="$TMPDIR/openfeed-stage"
 
 swift build -c release --scratch-path "$CACHE" 2>&1 | tail -2

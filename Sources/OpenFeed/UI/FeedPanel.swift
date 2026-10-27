@@ -26,6 +26,7 @@ struct FeedPanel: View {
     let onMenu: (NSView?) -> Void
 
     @State private var filter: FeedFilter = .all
+    @State private var dropTarget: String?
     @State private var menuAnchor = MenuAnchor()
 
     private var shownSections: [(day: Date, items: [FeedItem])] {
@@ -177,12 +178,25 @@ struct FeedPanel: View {
                 ForEach(shownSections, id: \.day) { section in
                     SectionHeader(day: section.day, count: section.items.count)
                     ForEach(section.items) { item in
-                        FeedRow(item: item) {
-                            store.markVisited(item)
-                            onOpen(item)
-                        } onMute: {
-                            store.mute(item)
-                        }
+                        FeedRow(
+                            item: item,
+                            isDropTarget: dropTarget == item.id,
+                            onOpen: {
+                                store.markVisited(item)
+                                onOpen(item)
+                            },
+                            onMute: { store.mute(item) },
+                            onHover: { inside in
+                                if inside {
+                                    store.setHover(item)
+                                } else if store.hoveredID == item.id {
+                                    store.setHover(nil)
+                                }
+                            }
+                        )
+                        .onDrop(of: [.text], delegate: RowDropDelegate(
+                            target: item, day: section.day, store: store, dropTarget: $dropTarget
+                        ))
                         Rectangle()
                             .fill(T.hairline)
                             .frame(height: 0.5)
@@ -190,7 +204,7 @@ struct FeedPanel: View {
                     }
                 }
                 if !shownSections.isEmpty {
-                    Text("最近 10 天 · 共 \(totalShown) 条")
+                    Text("最近 2 天 · 共 \(totalShown) 条")
                         .font(.system(size: T.metaSize))
                         .foregroundStyle(.quaternary)
                         .frame(maxWidth: .infinity, alignment: .center)

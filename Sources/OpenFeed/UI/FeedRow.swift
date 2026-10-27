@@ -1,10 +1,13 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct FeedRow: View {
     let item: FeedItem
+    let isDropTarget: Bool
     let onOpen: () -> Void
     let onMute: () -> Void
+    let onHover: (Bool) -> Void
 
     @State private var hovering = false
 
@@ -24,6 +27,7 @@ struct FeedRow: View {
                         trailing
                     }
                     .frame(height: T.icon, alignment: .center)
+
                     if !item.summary.isEmpty {
                         Text(item.summary)
                             .font(.system(size: T.summarySize))
@@ -40,10 +44,21 @@ struct FeedRow: View {
             .padding(.vertical, T.rowTop)
             .frame(width: T.width, alignment: .leading)
             .background(hovering ? T.rowHover : Color.clear)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(T.accent)
+                    .frame(height: isDropTarget ? 2 : 0)
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .onHover { inside in
+            hovering = inside
+            onHover(inside)
+        }
+        .onDrag {
+            NSItemProvider(object: item.id as NSString)
+        }
         .contextMenu {
             Button("在浏览器打开") { onOpen() }
             Button("复制链接") {
@@ -85,6 +100,12 @@ struct FeedRow: View {
 
     private var meta: some View {
         HStack(spacing: 5) {
+            if item.isExploration {
+                Text("探索")
+                    .font(.system(size: T.metaSize, weight: .medium))
+                    .foregroundStyle(T.accent)
+                separator
+            }
             Circle()
                 .fill(T.lane(item.lane))
                 .frame(width: 4, height: 4)
@@ -103,6 +124,12 @@ struct FeedRow: View {
                 separator
                 Text("↑\(delta.starText)")
                     .foregroundStyle(T.lane(item.lane).opacity(0.9))
+            }
+            if item.visitedAt == nil, item.isNewToday {
+                separator
+                Text("价值 \(Int(item.value.rounded()))")
+                    .foregroundStyle(.quaternary)
+                    .monospacedDigit()
             }
             separator
             Text(item.createdAt.agoText)
@@ -136,5 +163,39 @@ struct SectionHeader: View {
         .padding(.horizontal, T.pad)
         .padding(.top, 16)
         .padding(.bottom, 2)
+    }
+}
+
+/// 拖到哪一行，就在那一行上面画一条线；松手才真的换位置。
+struct RowDropDelegate: DropDelegate {
+    let target: FeedItem
+    let day: Date
+    let store: FeedStore
+    @Binding var dropTarget: String?
+
+    func validateDrop(info: DropInfo) -> Bool { true }
+
+    func dropEntered(info: DropInfo) {
+        dropTarget = target.id
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget == target.id { dropTarget = nil }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dropTarget = nil
+        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        provider.loadObject(ofClass: NSString.self) { value, _ in
+            guard let id = value as? String, id != target.id else { return }
+            Task { @MainActor in
+                store.move(id, before: target.id, day: day)
+            }
+        }
+        return true
     }
 }

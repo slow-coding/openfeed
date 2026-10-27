@@ -1,6 +1,5 @@
 import Foundation
 
-/// 一条 feed。三种东西混在一条流里：新仓库 / 关注项目的版本 / 论坛帖子。
 enum FeedKind: String, Codable, CaseIterable {
     case repo
     case release
@@ -27,22 +26,73 @@ struct FeedItem: Codable, Identifiable, Hashable {
     var imageURL: URL?
     /// OG 卡片被限流（429）时用头像顶上
     var avatarURL: URL?
-    /// GitHub 星数（只有仓库有）
+    /// README 里那张主图（可能是仓库内的相对路径，存原样，取的时候再解析）
+    var keyImagePath: String?
     var stars: Int?
     var language: String?
-    /// 上次拉取之后涨了多少星（本地算的，第一次拉取时是 nil）
     var starsDelta: Int?
     var createdAt: Date
-    /// 第一次被拉进 feed 的时间，决定它落在哪一天那一节
     var foundAt: Date
-    var score: Double
-    /// 发现它的那条兴趣线
     var lane: String
     var visitedAt: Date?
-    var muted: Bool = false
+    /// 不在你的兴趣线里、我挑进来的探索项
+    var isExploration: Bool = false
+    /// 价值分与理由，每次排序重算
+    var value: Double = 0
+    var reasons: [String] = []
 
     var isRepo: Bool { kind == .repo }
     var isNewToday: Bool { Calendar.current.isDateInToday(foundAt) }
+    /// releases 的 subtitle 就是 owner/repo
+    var repoSlug: String? {
+        switch kind {
+        case .repo: return subtitle + "/" + title
+        case .release: return subtitle
+        case .story: return nil
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, title, subtitle, summary, url, imageURL, avatarURL, keyImagePath
+        case stars, language, starsDelta, createdAt, foundAt, lane, visitedAt
+        case isExploration, value, reasons
+    }
+
+    init(id: String, kind: FeedKind, title: String, subtitle: String, summary: String, url: URL,
+         imageURL: URL?, avatarURL: URL?, keyImagePath: String? = nil, stars: Int?, language: String?,
+         starsDelta: Int?, createdAt: Date, foundAt: Date, lane: String, visitedAt: Date? = nil,
+         isExploration: Bool = false, value: Double = 0, reasons: [String] = []) {
+        self.id = id; self.kind = kind; self.title = title; self.subtitle = subtitle
+        self.summary = summary; self.url = url; self.imageURL = imageURL; self.avatarURL = avatarURL
+        self.keyImagePath = keyImagePath; self.stars = stars; self.language = language
+        self.starsDelta = starsDelta; self.createdAt = createdAt; self.foundAt = foundAt
+        self.lane = lane; self.visitedAt = visitedAt; self.isExploration = isExploration
+        self.value = value; self.reasons = reasons
+    }
+
+    // 老快照里没有后加的字段，缺了就取默认值，别让整份数据解不出来。
+    init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        id = try box.decode(String.self, forKey: .id)
+        kind = try box.decode(FeedKind.self, forKey: .kind)
+        title = try box.decode(String.self, forKey: .title)
+        subtitle = try box.decode(String.self, forKey: .subtitle)
+        summary = try box.decode(String.self, forKey: .summary)
+        url = try box.decode(URL.self, forKey: .url)
+        imageURL = try box.decodeIfPresent(URL.self, forKey: .imageURL)
+        avatarURL = try box.decodeIfPresent(URL.self, forKey: .avatarURL)
+        keyImagePath = try box.decodeIfPresent(String.self, forKey: .keyImagePath)
+        stars = try box.decodeIfPresent(Int.self, forKey: .stars)
+        language = try box.decodeIfPresent(String.self, forKey: .language)
+        starsDelta = try box.decodeIfPresent(Int.self, forKey: .starsDelta)
+        createdAt = try box.decode(Date.self, forKey: .createdAt)
+        foundAt = try box.decode(Date.self, forKey: .foundAt)
+        lane = try box.decode(String.self, forKey: .lane)
+        visitedAt = try box.decodeIfPresent(Date.self, forKey: .visitedAt)
+        isExploration = try box.decodeIfPresent(Bool.self, forKey: .isExploration) ?? false
+        value = try box.decodeIfPresent(Double.self, forKey: .value) ?? 0
+        reasons = try box.decodeIfPresent([String].self, forKey: .reasons) ?? []
+    }
 }
 
 struct FeedSnapshot: Codable {
@@ -51,4 +101,27 @@ struct FeedSnapshot: Codable {
     var lastSuccessAt: Date?
     /// 每个查询上次拉回来几条，出问题时能看出是哪一条挂了
     var report: [String] = []
+    /// 手动拖过之后，那一天按这个顺序摆（day key → item ids）
+    var order: [String: [String]] = [:]
+    /// 上次清缓存的时间与清掉多少
+    var lastCacheSweep: Date?
+    var lastCacheSweepCount: Int = 0
+
+    init(generatedAt: Date, items: [FeedItem], lastSuccessAt: Date?, report: [String] = [],
+         order: [String: [String]] = [:], lastCacheSweep: Date? = nil, lastCacheSweepCount: Int = 0) {
+        self.generatedAt = generatedAt; self.items = items; self.lastSuccessAt = lastSuccessAt
+        self.report = report; self.order = order
+        self.lastCacheSweep = lastCacheSweep; self.lastCacheSweepCount = lastCacheSweepCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        generatedAt = try box.decode(Date.self, forKey: .generatedAt)
+        items = try box.decode([FeedItem].self, forKey: .items)
+        lastSuccessAt = try box.decodeIfPresent(Date.self, forKey: .lastSuccessAt)
+        report = try box.decodeIfPresent([String].self, forKey: .report) ?? []
+        order = try box.decodeIfPresent([String: [String]].self, forKey: .order) ?? [:]
+        lastCacheSweep = try box.decodeIfPresent(Date.self, forKey: .lastCacheSweep)
+        lastCacheSweepCount = try box.decodeIfPresent(Int.self, forKey: .lastCacheSweepCount) ?? 0
+    }
 }
