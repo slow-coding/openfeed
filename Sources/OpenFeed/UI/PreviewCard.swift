@@ -1,9 +1,34 @@
 import SwiftUI
 import AppKit
 
-/// 悬停时弹在面板左边的那张卡：先给图，再给字。
-/// 图是主图（README 里第一张产品图），拿不到就退到 GitHub 的分享卡，再不行退头像。
+/// 预览窗里显示哪一条。换条目只是改这个值，视图自己在里面做淡入，
+/// 不再整块重建——重建就没有过渡，看起来是「啪」地一下。
+final class PreviewModel: ObservableObject {
+    @Published var item: FeedItem
+
+    init(item: FeedItem) { self.item = item }
+}
+
 struct PreviewCard: View {
+    @ObservedObject var model: PreviewModel
+    let onOpen: () -> Void
+    var onRate: (Int) -> Void = { _ in }
+
+    static let width: CGFloat = 380
+    static let imageHeight: CGFloat = 196
+
+    var body: some View {
+        ZStack {
+            CardBody(item: model.item, onOpen: onOpen, onRate: onRate)
+                .id(model.item.id)
+                .transition(.opacity)
+        }
+        .animation(.easeOut(duration: 0.16), value: model.item.id)
+    }
+}
+
+/// 一条卡的全部内容。它按条目 id 重建，所以图和一句话不会串到上一条去。
+private struct CardBody: View {
     let item: FeedItem
     let onOpen: () -> Void
     var onRate: (Int) -> Void = { _ in }
@@ -20,9 +45,6 @@ struct PreviewCard: View {
         self.onRate = onRate
         _rating = State(initialValue: item.rating)
     }
-
-    static let width: CGFloat = 380
-    static let imageHeight: CGFloat = 196
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -49,10 +71,7 @@ struct PreviewCard: View {
             }
             .padding(14)
         }
-        // 每条一份自己的状态：不然换到下一条时，image / coreLine 会沿用上一条，
-        // 看起来就是「图重复了」或者「没更新」。
-        .id(item.id)
-        .frame(width: Self.width, alignment: .leading)
+        .frame(width: PreviewCard.width, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -64,9 +83,6 @@ struct PreviewCard: View {
         // 整卡可点开；页脚那 5 颗星是自己的手势，会先接住点击，不会误开浏览器
         .onTapGesture { onOpen() }
         .task(id: item.id) {
-            image = nil
-            tried = false
-            // 分享卡通常已经缓存过，先顶上，别让那块空着等 README 解析
             if let url = item.imageURL, let data = ImageStore.shared.cached("og|\(url.absoluteString)") {
                 image = NSImage(data: data)
             }
@@ -89,7 +105,7 @@ struct PreviewCard: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: Self.width, height: Self.imageHeight)
+                    .frame(width: PreviewCard.width, height: PreviewCard.imageHeight)
                     .clipped()
             } else {
                 VStack(spacing: 6) {
@@ -102,7 +118,7 @@ struct PreviewCard: View {
                 }
             }
         }
-        .frame(width: Self.width, height: Self.imageHeight)
+        .frame(width: PreviewCard.width, height: PreviewCard.imageHeight)
         .clipped()
     }
 

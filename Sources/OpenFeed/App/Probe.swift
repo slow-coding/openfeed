@@ -254,7 +254,8 @@ enum Probe {
     private static func swapRender(a: FeedItem, b: FeedItem, directory: URL) async -> [String: Any] {
         let size = NSSize(width: PreviewCard.width, height: 470)
         let root = BackdropView(frame: NSRect(origin: .zero, size: size))
-        let host = NSHostingView(rootView: PreviewCard(item: a, onOpen: {}))
+        let model = PreviewModel(item: a)
+        let host = NSHostingView(rootView: PreviewCard(model: model, onOpen: {}))
         host.frame = root.bounds
         root.addSubview(host)
 
@@ -269,7 +270,7 @@ enum Probe {
             try? png.write(to: directory.appendingPathComponent("swap-a.png"))
             shots.append(["item": a.title, "bytes": png.count])
         }
-        host.rootView = PreviewCard(item: b, onOpen: {})
+        model.item = b
         host.layoutSubtreeIfNeeded()
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         if let png = capture(root) {
@@ -293,7 +294,7 @@ enum Probe {
     private static func renderPreview(item: FeedItem, appearance: NSAppearance?) async -> Data? {
         var size = PreviewController.size
         let root = BackdropView(frame: NSRect(origin: .zero, size: size))
-        let card = PreviewCard(item: item, onOpen: {})
+        let card = PreviewCard(model: PreviewModel(item: item), onOpen: {})
         let host = NSHostingView(rootView: card)
         host.frame = NSRect(x: 0, y: 0, width: size.width, height: size.height)
         host.layoutSubtreeIfNeeded()

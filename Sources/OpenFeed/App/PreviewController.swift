@@ -13,6 +13,7 @@ final class PreviewController {
     private var host: NSHostingView<PreviewCard>?
     private var sizeTimer: Timer?
     private var anchorWindow: NSWindow?
+    private var model: PreviewModel?
     private var currentItem: FeedItem?
     private var onOpen: ((FeedItem) -> Void)?
     private var onRate: ((FeedItem, Int) -> Void)?
@@ -37,13 +38,14 @@ final class PreviewController {
         currentItem = item
         if sameItem { startSizing(); return }
 
-        let card = PreviewCard(item: item, onOpen: { [weak self] in
+        let open: () -> Void = { [weak self] in
             guard let self, let item = self.currentItem else { return }
             self.onOpen?(item)
-        }, onRate: { [weak self] stars in
+        }
+        let rate: (Int) -> Void = { [weak self] stars in
             guard let self, let item = self.currentItem else { return }
             self.onRate?(item, stars)
-        })
+        }
 
         if panel == nil {
             let panel = NSPanel(
@@ -62,12 +64,15 @@ final class PreviewController {
             panel.collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
             self.panel = panel
 
-            let host = NSHostingView(rootView: card)
+            let model = PreviewModel(item: item)
+            let host = NSHostingView(rootView: PreviewCard(model: model, onOpen: open, onRate: rate))
             host.frame = NSRect(origin: .zero, size: Self.size)
             panel.contentView = host
             self.host = host
-        } else {
-            host?.rootView = card
+            self.model = model
+        } else if let model {
+            // 只改这一条：卡片自己淡过去，不重建整棵树
+            model.item = item
         }
 
         if panel != nil {
