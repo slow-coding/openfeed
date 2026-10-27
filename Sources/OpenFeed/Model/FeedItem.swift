@@ -50,6 +50,21 @@ struct FeedItem: Codable, Identifiable, Hashable {
 
     var isRepo: Bool { kind == .repo }
     var isNewToday: Bool { Calendar.current.isDateInToday(foundAt) }
+    /// 复制出去的那一小块：链接 + 一句话，粘到聊天里就能看。
+    var copyText: String {
+        let line = (coreLine ?? summary).trimmingCharacters(in: .whitespacesAndNewlines)
+        switch kind {
+        case .repo:
+            return line.isEmpty ? "\(title)\n\(url.absoluteString)"
+                                : "\(title) — \(line)\n\(url.absoluteString)"
+        case .release:
+            return line.isEmpty ? "\(subtitle) \(title)\n\(url.absoluteString)"
+                                : "\(subtitle) \(title) — \(line)\n\(url.absoluteString)"
+        case .story:
+            return "\(title)\n\(url.absoluteString)"
+        }
+    }
+
     /// releases 的 subtitle 就是 owner/repo
     var repoSlug: String? {
         switch kind {

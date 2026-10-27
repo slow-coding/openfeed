@@ -46,6 +46,7 @@ enum Probe {
         report["todayByLane"] = byLane
         report["lastSuccess"] = store.snapshot.lastSuccessAt.map(ISO8601DateFormatter().string) ?? "never"
         report["withImage"] = store.items.filter { $0.imageURL != nil }.count
+        report["copySample"] = today.prefix(2).map { $0.copyText }
         report["top"] = today.prefix(8).map { item -> [String: Any] in
             [
                 "kind": item.kind.rawValue,

@@ -24,7 +24,7 @@ struct FeedRow: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 4)
-                        trailing
+                        if hovering { copyButton } else { trailing }
                     }
                     .frame(height: T.icon, alignment: .center)
 
@@ -61,15 +61,30 @@ struct FeedRow: View {
         }
         .contextMenu {
             Button("在浏览器打开") { onOpen() }
-            Button("复制链接") {
+            Button("复制链接与一句话") {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(item.url.absoluteString, forType: .string)
+                NSPasteboard.general.setString(item.copyText, forType: .string)
             }
             if item.isRepo {
                 Divider()
                 Button("不再显示 \(item.title)") { onMute() }
             }
         }
+    }
+
+    private var copyButton: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(item.copyText, forType: .string)
+        } label: {
+            Image(systemName: "link")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("复制链接与一句话")
     }
 
     @ViewBuilder
