@@ -38,6 +38,8 @@ enum Probe {
         report["seenRepos"] = SeenIndex.load().repos.count
         report["cache"] = ImageStore.shared.totalText
         report["prefsPairs"] = store.prefs.pairs
+        report["docBoosts"] = PreferencesDoc.boosts().sorted { $0.value > $1.value }
+            .map { "\($0.key)=\(String(format: "%.2f", $0.value))" }
         report["prefsWeights"] = store.prefs.weights.sorted { $0.value > $1.value }.prefix(8)
             .map { "\($0.key)=\(String(format: "%.2f", $0.value))" }
         report["items"] = store.items.count
@@ -120,6 +122,28 @@ enum Probe {
             store.fillCoreLines()
             report["summaries"] = results
             report["keySource"] = CoreValue.keySource
+        }
+
+        if let index = arguments.firstIndex(of: "--prefs-shot"), index + 1 < arguments.count {
+            let directory = URL(fileURLWithPath: arguments[index + 1])
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let size = NSSize(width: 600, height: 560)
+            let root = BackdropView(frame: NSRect(origin: .zero, size: size))
+            let host = NSHostingView(rootView: PreferencesView(text: PreferencesDoc.load(), onSave: { _ in }))
+            host.frame = root.bounds
+            host.autoresizingMask = [.width, .height]
+            root.addSubview(host)
+            let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
+                                  styleMask: [.borderless], backing: .buffered, defer: false)
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.contentView = root
+            window.orderFrontRegardless()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            if let png = capture(root) {
+                try? png.write(to: directory.appendingPathComponent("prefs.png"))
+                report["prefsShot"] = directory.appendingPathComponent("prefs.png").path
+            }
+            window.orderOut(nil)
         }
 
         if let index = arguments.firstIndex(of: "--swap-check"), index + 1 < arguments.count {

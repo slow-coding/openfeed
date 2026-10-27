@@ -129,6 +129,13 @@ enum ValueModel {
             if contribution > 0.3 { parts.append((contribution, reason(key, item: item, amount: amount))) }
         }
 
+        // 偏好文档里提到这条线，就一直给它一点倾斜（改文档立刻生效）
+        let docBoost = PreferencesDoc.boost(for: item.lane)
+        if docBoost > 0 {
+            total += 12 * docBoost
+            parts.append((12 * docBoost, "你把它写进了当下偏好"))
+        }
+
         // 你打的分是明确信号：5 星 +8，1 星 -8
         if item.rating > 0 {
             let lift = Double(item.rating - 3) * 4

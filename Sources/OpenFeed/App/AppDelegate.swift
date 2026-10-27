@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isRefreshing = false
     private var observers: [AnyCancellable] = []
     private let preview = PreviewController()
+    private var prefsWindow: PreferencesWindowController?
     private var hoverWork: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -230,6 +231,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configItem.target = self
         menu.addItem(configItem)
 
+        let prefsItem = NSMenuItem(title: "当下偏好…", action: #selector(menuPreferences), keyEquivalent: ",")
+        prefsItem.target = self
+        menu.addItem(prefsItem)
+
         let folderItem = NSMenuItem(title: "打开数据文件夹", action: #selector(menuOpenFolder), keyEquivalent: "")
         folderItem.target = self
         menu.addItem(folderItem)
@@ -292,6 +297,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuResetPrefs() {
         store.resetPreferences()
+    }
+
+    @objc private func menuPreferences() {
+        popover.performClose(nil)
+        preview.hide()
+        if prefsWindow == nil { prefsWindow = PreferencesWindowController(store: store) }
+        prefsWindow?.present()
     }
 
     @objc private func menuOpenConfig() {

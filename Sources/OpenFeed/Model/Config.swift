@@ -59,7 +59,9 @@ struct FeedConfig: Codable {
         .init(lane: "动效视觉", q: "topic:webgl stars:>300 created:>{since}", days: 90,
               must: ["webgl", "shader", "three", "graphics", "canvas"]),
         .init(lane: "动效视觉", q: "topic:animation stars:>250 created:>{since}", days: 90,
-              must: ["animation", "motion", "css", "svg", "transition"]),
+              must: ["animation", "motion", "css", "svg", "transition", "lottie", "rive"]),
+        .init(lane: "动效视觉", q: "topic:threejs stars:>150 created:>{since}", days: 90,
+              must: ["three", "webgl", "3d", "shader", "r3f", "babylon"]),
         // 下面几条是「我没提过、但你可能想要」的探索线。它们不按你的兴趣线出，混在流里；
         // 你把它们拖上去或者点开，那条线的权重就涨，涨到 0.5 以上就不再当探索项。
         .init(lane: "本地优先", q: "topic:local-first stars:>300 created:>{since}", days: 60,
@@ -68,8 +70,10 @@ struct FeedConfig: Codable {
               limit: 8, must: ["on-device", "mobile", "local", "coreml", "mlx", "edge"]),
         .init(lane: "评测与观测", q: "topic:llm-evaluation stars:>150 created:>{since}", days: 60,
               limit: 8, must: ["eval", "benchmark", "observability", "trace", "guardrail"]),
-        .init(lane: "设计工程", q: "topic:design-engineering stars:>200 created:>{since}", days: 60,
-              limit: 8, must: ["design", "ui", "component", "typography", "interface"]),
+        .init(lane: "可视化", q: "topic:data-visualization stars:>250 created:>{since}", days: 60,
+              limit: 10, must: ["chart", "dashboard", "visual", "plot", "graph", "canvas"]),
+        .init(lane: "可视化", q: "topic:diagram stars:>80 created:>{since}", days: 90,
+              limit: 10, must: ["diagram", "flowchart", "chart", "graph", "node", "layout"]),
         // 老的但还在涨：不按创建日筛，靠本地星数差（见 Scoring）
         .init(lane: "上下文记忆", q: "topic:agent-memory stars:>1000 pushed:>{recent}", sort: "updated",
               limit: 20, needsAuth: true,

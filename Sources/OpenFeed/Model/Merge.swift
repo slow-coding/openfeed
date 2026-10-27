@@ -31,7 +31,8 @@ enum Merge {
     static let keepDays = 2
     /// 你的六条线。不在这里面的都是探索项。
     static let coreLanes: Set<String> = [
-        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "生成式界面", "动效视觉", "关注项目", "讨论"
+        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "生成式界面", "动效视觉",
+        "可视化", "关注项目", "讨论"
     ]
 
     static func run(repos: [RepoHit], releases: [ReleaseHit], stories: [StoryHit],

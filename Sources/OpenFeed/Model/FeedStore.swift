@@ -204,6 +204,15 @@ final class FeedStore: ObservableObject {
         save()
     }
 
+    /// 偏好文档改了：重算所有条目的价值并按新权重排。
+    func applyPreferencesDoc(_ text: String) {
+        PreferencesDoc.save(text)
+        // 文档变了就取消手动顺序，让新权重立刻生效
+        snapshot.order = [:]
+        rescore()
+        save()
+    }
+
     func resetPreferences() {
         prefs = Preferences()
         prefs.save()
