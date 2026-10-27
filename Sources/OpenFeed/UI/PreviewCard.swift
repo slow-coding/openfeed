@@ -10,7 +10,6 @@ struct PreviewCard: View {
     @State private var image: NSImage?
     @State private var tried = false
     @State private var coreLine: String?
-    @State private var copied = false
 
     static let width: CGFloat = 380
     static let imageHeight: CGFloat = 196
@@ -87,40 +86,6 @@ struct PreviewCard: View {
         }
         .frame(width: Self.width, height: Self.imageHeight)
         .clipped()
-        .overlay(alignment: .topTrailing) { copyButton.padding(10) }
-    }
-
-    /// 压在图上，所以用固定的深底白字：图是任意颜色，磨砂在深色图上几乎看不见。
-    private var copyButton: some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(item.copyText, forType: .string)
-            copied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { copied = false }
-        } label: {
-            Group {
-                if copied {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-                        Text("已复制").font(.system(size: 10.5, weight: .medium))
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                } else {
-                    Image(systemName: "link")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 26, height: 26)
-                }
-            }
-            .foregroundStyle(.white.opacity(0.95))
-            .background(
-                Capsule().fill(Color.black.opacity(copied ? 0.62 : 0.45))
-            )
-            .overlay(Capsule().strokeBorder(.white.opacity(0.14), lineWidth: 0.5))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .help("复制链接与一句话")
     }
 
     private var header: some View {

@@ -255,7 +255,9 @@ enum Probe {
             store: store,
             onOpen: { _ in },
             onRefresh: {},
-            onMenu: { _ in }
+            onMenu: { _ in },
+            forceHoverID: CommandLine.arguments.contains("--hover")
+                ? store.sections().first?.items.first?.id : nil
         )
         let host = NSHostingView(rootView: panel)
         host.frame = root.bounds

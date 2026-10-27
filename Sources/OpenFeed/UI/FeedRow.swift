@@ -8,8 +8,13 @@ struct FeedRow: View {
     let onOpen: () -> Void
     let onMute: () -> Void
     let onHover: (Bool) -> Void
+    /// 自检用：不真的悬停也能看到悬停时的样子
+    var forceHover: Bool = false
 
     @State private var hovering = false
+    @State private var copied = false
+
+    private var shown: Bool { hovering || forceHover }
 
     var body: some View {
         Button(action: onOpen) {
@@ -24,7 +29,7 @@ struct FeedRow: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 4)
-                        if hovering { copyButton } else { trailing }
+                        trailing
                     }
                     .frame(height: T.icon, alignment: .center)
 
@@ -43,11 +48,18 @@ struct FeedRow: View {
             .padding(.horizontal, T.pad)
             .padding(.vertical, T.rowTop)
             .frame(width: T.width, alignment: .leading)
-            .background(hovering ? T.rowHover : Color.clear)
+            .background(shown ? T.rowHover : Color.clear)
             .overlay(alignment: .top) {
                 Rectangle()
                     .fill(T.accent)
                     .frame(height: isDropTarget ? 2 : 0)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                copyButton
+                    .padding(.trailing, T.pad - 6)
+                    .padding(.bottom, T.rowTop - 4)
+                    .opacity(shown || copied ? 1 : 0)
+                    .allowsHitTesting(shown || copied)
             }
             .contentShape(Rectangle())
         }
@@ -72,19 +84,22 @@ struct FeedRow: View {
         }
     }
 
+    /// 列表行右下角的复制键：跟代码块上那颗一样，停上去才出来。
     private var copyButton: some View {
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(item.copyText, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
         } label: {
-            Image(systemName: "link")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 18, height: 16)
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(copied ? T.accent : Color.secondary)
+                .frame(width: 20, height: 18)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("复制链接与一句话")
+        .help(copied ? "已复制" : "复制链接与一句话")
     }
 
     @ViewBuilder

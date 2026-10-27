@@ -27,6 +27,8 @@ struct FeedPanel: View {
 
     @State private var filter: FeedFilter = .all
     @State private var dropTarget: String?
+    /// 自检用：把某一行摆成悬停态
+    var forceHoverID: String?
     @State private var menuAnchor = MenuAnchor()
 
     private var shownSections: [(day: Date, items: [FeedItem])] {
@@ -192,7 +194,8 @@ struct FeedPanel: View {
                                 } else if store.hoveredID == item.id {
                                     store.setHover(nil)
                                 }
-                            }
+                            },
+                            forceHover: forceHoverID == item.id
                         )
                         .onDrop(of: [.text], delegate: RowDropDelegate(
                             target: item, day: section.day, store: store, dropTarget: $dropTarget
