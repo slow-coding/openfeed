@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// 预览卡挂在主面板左边（菜单栏在最右边，往左才放得下），高度跟着鼠标走。
-/// 鼠标离开两个窗口 300ms 后收起；进入卡片就不收，这样才能点。
+/// 预览卡挂在主面板左边（菜单栏在最右边，往左才放得下）。
+/// 它不跟鼠标走：停在哪个条目就一直显示，直到你点开它、点外面、或者换到另一条。
+/// 图 / 一句话是异步到的，所以开出来的头三秒按内容把高度收一次。
 @MainActor
 final class PreviewController {
     static let size = NSSize(width: PreviewCard.width, height: 470)
@@ -10,10 +11,9 @@ final class PreviewController {
 
     private var panel: NSPanel?
     private var host: NSHostingView<PreviewCard>?
-    private var timer: Timer?
-    private var hideAt: Date?
+    private var sizeTimer: Timer?
     private var anchorWindow: NSWindow?
-    private var currentID: String?
+    private var currentItem: FeedItem?
     private var onOpen: ((FeedItem) -> Void)?
     private var onRate: ((FeedItem, Int) -> Void)?
 
@@ -28,12 +28,14 @@ final class PreviewController {
     func show(item: FeedItem, beside window: NSWindow,
               onOpen: @escaping (FeedItem) -> Void,
               onRate: @escaping (FeedItem, Int) -> Void = { _, _ in }) {
-        if currentID == item.id, panel?.isVisible == true { return }
-        currentID = item.id
         anchorWindow = window
         self.onOpen = onOpen
-
         self.onRate = onRate
+
+        let sameItem = currentItem?.id == item.id && panel?.isVisible == true
+        currentItem = item
+        if sameItem { startSizing(); return }
+
         let card = PreviewCard(item: item, onOpen: { [weak self] in
             guard let self, let item = self.currentItem else { return }
             self.onOpen?(item)
@@ -41,7 +43,6 @@ final class PreviewController {
             guard let self, let item = self.currentItem else { return }
             self.onRate?(item, stars)
         })
-        currentItem = item
 
         if panel == nil {
             let panel = NSPanel(
@@ -56,9 +57,8 @@ final class PreviewController {
             panel.isOpaque = false
             panel.backgroundColor = .clear
             panel.hasShadow = true
-            panel.ignoresMouseEvents = false
             panel.becomesKeyOnlyIfNeeded = true
-            panel.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
+            panel.collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary]
             self.panel = panel
 
             let host = NSHostingView(rootView: card)
@@ -69,30 +69,49 @@ final class PreviewController {
             host?.rootView = card
         }
 
-        // 高度跟着卡片内容走，别在底下留一截空白
         if panel != nil {
             var frame = panel!.frame
             frame.size.height = fittedHeight()
             panel?.setFrame(frame, display: false)
         }
-        position(item: item)
+        position()
         panel?.alphaValue = 0
         panel?.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.12
             panel?.animator().alphaValue = 1
         }
-        startTracking()
+        startSizing()
     }
 
-    private var currentItem: FeedItem?
-
     func hide() {
-        timer?.invalidate(); timer = nil
-        hideAt = nil
-        currentID = nil
+        sizeTimer?.invalidate(); sizeTimer = nil
         currentItem = nil
         panel?.orderOut(nil)
+    }
+
+    /// 只做一件事：内容到了把高度收好。不做「鼠标走了就收」——那是他明确不要的。
+    private func startSizing() {
+        sizeTimer?.invalidate()
+        var ticks = 0
+        sizeTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                ticks += 1
+                self?.resizeIfNeeded()
+                if ticks > 24 { self?.sizeTimer?.invalidate(); self?.sizeTimer = nil }
+            }
+        }
+    }
+
+    private func resizeIfNeeded() {
+        guard let panel, panel.isVisible else { return }
+        let target = fittedHeight()
+        guard abs(panel.frame.height - target) > 2 else { return }
+        let top = panel.frame.maxY
+        var frame = panel.frame
+        frame.size.height = target
+        frame.origin.y = max(8, top - target)
+        panel.setFrame(frame, display: true, animate: false)
     }
 
     private func fittedHeight() -> CGFloat {
@@ -101,50 +120,18 @@ final class PreviewController {
         return min(Self.maxHeight, max(300, host.fittingSize.height))
     }
 
-    private func position(item: FeedItem) {
+    private func position() {
         guard let panel, let screen = anchorWindow?.screen ?? NSScreen.main else { return }
         let visible = screen.visibleFrame
-        var x = (anchorWindow?.frame.minX ?? visible.maxX) - Self.size.width - 10
+        // 贴着面板左边，中间不留缝：鼠标从列表挪过来不会「掉出去」
+        var x = (anchorWindow?.frame.minX ?? visible.maxX) - Self.size.width - 4
         if x < visible.minX + 8 {
-            x = (anchorWindow?.frame.maxX ?? visible.minX) + 10
+            x = (anchorWindow?.frame.maxX ?? visible.minX) + 4
         }
         let mouseY = NSEvent.mouseLocation.y
         var y = mouseY - 28
         let height = panel.frame.height
         y = min(max(y, visible.minY + 8), visible.maxY - height - 8)
         panel.setFrame(NSRect(x: x, y: y, width: Self.size.width, height: height), display: true)
-    }
-
-    private func startTracking() {
-        timer?.invalidate()
-        hideAt = nil
-        timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
-    }
-
-    private func tick() {
-        guard let panel, panel.isVisible else { hide(); return }
-        // 图和一句话是异步来的，来了窗口要跟着长；松手时定死就会把页脚裁掉。
-        let target = fittedHeight()
-        if abs(panel.frame.height - target) > 2 {
-            let top = panel.frame.maxY
-            var frame = panel.frame
-            frame.size.height = target
-            frame.origin.y = max(8, top - target)
-            panel.setFrame(frame, display: true, animate: false)
-        }
-        let mouse = NSEvent.mouseLocation
-        let insidePanel = panel.frame.contains(mouse)
-        let insidePopover = anchorWindow?.frame.contains(mouse) ?? false
-        if insidePanel || insidePopover {
-            hideAt = nil
-            return
-        }
-        if let hideAt {
-            if Date() >= hideAt { hide() }
-        } else {
-            hideAt = Date().addingTimeInterval(0.3)
-        }
     }
 }

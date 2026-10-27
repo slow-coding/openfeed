@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.preview.show(item: first, beside: window) { _ in }
                     previewProbe = "\(self.preview.frameDescription) shown=\(self.preview.isShown)"
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                     let button = self.statusItem.button
                     let report: [String: Any] = [
                         "popoverShown": self.popover.isShown,
@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         "items": self.store.items.count,
                         "unread": self.store.unread(todayOnly: true),
                         "previewAtShow": previewProbe,
+                        "previewStillShown": self.preview.isShown,
                         "cache": self.store.cacheText,
                         "pairs": self.store.prefs.pairs
                     ]
@@ -157,6 +158,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         popover.contentViewController = NSHostingController(rootView: root)
+        // 面板自己关掉（点外面 / 按 Esc）时，左边那张卡一起收
+        NotificationCenter.default.addObserver(forName: NSPopover.didCloseNotification,
+                                               object: popover, queue: .main) { [weak self] _ in
+            self?.preview.hide()
+        }
     }
 
     private func togglePopover() {
@@ -173,7 +179,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 悬停 180ms 才弹：划过一路不闪。
     private func schedulePreview() {
         hoverWork?.cancel()
-        guard let item = store.hoveredItem, popover.isShown else {
+        guard let item = store.hoveredItem else {
+            // 鼠标可能是从这一行走向左边那张卡：别当场收，交给预览窗的计时器判断。
+            return
+        }
+        guard popover.isShown else {
             preview.hide()
             return
         }
