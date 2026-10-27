@@ -14,6 +14,8 @@ struct FeedRow: View {
 
     @State private var hovering = false
     @State private var copied = false
+    @State private var hoveringRating = false
+    @State private var hoverStar: Int?
 
     private var shown: Bool { hovering || forceHover }
 
@@ -30,7 +32,7 @@ struct FeedRow: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 4)
-                        trailing
+                        topRight
                     }
                     .frame(height: T.icon, alignment: .center)
 
@@ -95,6 +97,46 @@ struct FeedRow: View {
                 Button("不再显示 \(item.title)") { onMute() }
             }
         }
+    }
+
+    /// 右上角那一格：平时是 GitHub 星数，鼠标一停上去就换成 5 颗可点的星。
+    /// 宽度写死 64，换成星星的时候标题不会跟着折一下。
+    private var topRight: some View {
+        ZStack(alignment: .trailing) {
+            if hoveringRating || forceHover {
+                HStack(spacing: 1) {
+                    ForEach(1...5, id: \.self) { n in
+                        Button {
+                            onRate(n == item.rating ? 0 : n)
+                        } label: {
+                            Image(systemName: n <= item.rating ? "star.fill" : "star")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(color(for: n))
+                                .frame(width: 12, height: 14)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { inside in
+                            if inside { hoverStar = n } else if hoverStar == n { hoverStar = nil }
+                        }
+                    }
+                }
+            } else {
+                trailing
+            }
+        }
+        .frame(width: 64, alignment: .trailing)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hoveringRating = inside
+        }
+        .help(hoveringRating ? "点第 N 颗打 N 星，再点一次取消" : "鼠标放上去可以打分")
+    }
+
+    private func color(for n: Int) -> Color {
+        if n <= item.rating { return T.accent }
+        if let hoverStar, n <= hoverStar { return T.accent.opacity(0.55) }
+        return Color.secondary.opacity(0.55)
     }
 
     /// 列表行右下角的复制键：跟代码块上那颗一样，停上去才出来。
