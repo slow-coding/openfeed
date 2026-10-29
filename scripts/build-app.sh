@@ -44,7 +44,9 @@ cat > "$STAGE/$APP_NAME.app/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --sign - "$STAGE/$APP_NAME.app" >/dev/null 2>&1
+# 默认 ad-hoc 签名：不带任何个人证书，谁 clone 下来都能编。要用自己的证书就在环境里给：
+#   CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/build-app.sh
+codesign --force --sign "${CODESIGN_IDENTITY:--}" "$STAGE/$APP_NAME.app" >/dev/null 2>&1
 
 pkill -x OpenFeed 2>/dev/null || true
 rm -rf "/Applications/$APP_NAME.app"

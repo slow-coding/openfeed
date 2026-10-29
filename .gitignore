@@ -3,4 +3,5 @@
 assets/AppIcon.iconset/
 *.png
 !assets/*.png
+!assets/shots/*.png
 .DS_Store

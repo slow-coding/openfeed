@@ -1,96 +1,98 @@
 # OpenFeed
 
-菜单栏里的一条开源 feed：每天 09:00（或过了 9 点第一次开机）自动拉一批 GitHub 上新出现和在涨的仓库、关注项目的 release、HN 上的相关讨论，按六条兴趣线归好类。点图标看，点条目开浏览器。
+A macOS menu-bar feed for people who read GitHub for a living. Every morning it pulls what shipped and what is climbing, keeps the few items that match the lanes you care about, and gets out of the way.
 
-## 装
+![OpenFeed panel](assets/shots/panel-dark.png)
+
+## Why
+
+GitHub search answers "what exists". What you need each morning is "what changed, and of that, what deserves ten minutes". OpenFeed fetches on a schedule, dedupes against everything it has already shown you, scores what is left, and caps the day at sixty rows. You get a short list, not another firehose.
+
+- **Hover a row** — a card shows the repository's key image from its README, a one-line summary of what it actually does, and the two reasons it scored where it did.
+- **Click** — opens it in the browser.
+- **Five stars under the card** — rating the row retrains the ranking; so does dragging a row above another.
+- **Preferences you can read** — a plain Markdown file, one line per thing you care about. No hidden weights to reverse-engineer.
+
+## Requirements
+
+- macOS 13 or later
+- Xcode command line tools (Swift 5.9+)
+
+## Install
 
 ```bash
-./scripts/build-app.sh          # 编 + 装到 /Applications/OpenFeed.app
+git clone https://github.com/<you>/openfeed.git
+cd openfeed
+./scripts/build-app.sh      # builds and copies to /Applications/OpenFeed.app
 open -a OpenFeed
 ```
 
-第一次启动会顺手注册开机自启（LaunchAgent），并立刻拉第一批。
+The app registers a login item on first launch and fetches immediately. Everything it fetches is stored locally; nothing is uploaded anywhere.
 
-## 用
+## Configure
 
-- **点图标**：打开面板。左边一列是发现它的兴趣线，右边是星数 / 时间。
-- **鼠标停在一条上**：左边弹一张卡，先给图（README 里的第一张产品图，拿不到退 GitHub 分享卡，再退头像），下面给简介、话题、以及「价值 N」和它的两条理由。卡片不会因为你把鼠标挪开就消失——它一直停在那儿，直到你点开它、点面板外面、或者移到另一条上。
-- **拖**：按住一行上下拖，松手就换位置。拖动会记成偏好——你把它拖到谁上面，那条线、那类内容就涨权重，下一次的价值分会跟着变。
-- **探索项**：标着「探索」的是你没提过的线（本地优先、端侧模型、评测与观测、设计工程）。它们被压到 0.82 倍，混在中间；你反复往上拖或点开，那条线的权重涨过 0.5 就不再算探索。
-- **↻**：现在拉一次。**⋯**：全部已读、开机自启、每天几点拉、打开关注列表、GitHub 令牌。
-- **右键图标**：同一个菜单。
-- 条目右键：复制链接、不再显示这个仓库。
-
-面板按「哪一天发现的」分节，最多留 10 天。今天已经看过的条目会变淡。
-
-## 兴趣线在哪改
-
-`~/Library/Application Support/OpenFeed/config.json`（菜单里「打开关注列表…」直接打开）。
+The whole feed is defined by one JSON file, `~/Library/Application Support/OpenFeed/config.json` (menu: **关注列表…**). A minimal version:
 
 ```json
 {
   "hour": 9,
   "queries": [
-    { "lane": "上下文记忆", "q": "topic:agent-memory stars:>150 created:>{since}",
-      "sort": "stars", "days": 45, "limit": 15, "must": [] }
+    { "lane": "智能体", "q": "topic:ai-agents stars:>200 created:>{since}" },
+    { "lane": "智能体", "q": "topic:ai-agents stars:>2000 pushed:>{recent}", "sort": "updated", "needsAuth": true },
+    { "lane": "本地优先", "q": "topic:local-first stars:>300 created:>{since}",
+      "days": 60, "limit": 8, "must": ["local-first", "offline", "crdt"] }
   ],
-  "releases": ["langchain-ai/langgraph"],
-  "stories": ["agent memory"]
+  "releases": ["vercel/ai", "openai/codex"],
+  "stories": ["AI coding agent"],
+  "exploreLanes": ["本地优先"],
+  "laneKeywords": { "本地优先": ["离线", "local-first"] }
 }
 ```
 
-- `q`：GitHub 搜索语法。`{since}` 换成「45 天前」，`{recent}` 换成「7 天前」。
-- `must`：命中词。仓库的名字 / 简介 / 话题里至少出现一个才留下——GitHub 的话题是作者自己贴的，不设这道闸，搜「知识图谱」会连教辅题库一起拉进来。
-- `sort: "updated"` 的查询算「还在涨」：第一次只记下星数，从第二天起靠本地算出的涨星（≥300）才让它重新冒到前面。
-- `releases` / `stories`：关注项目的版本（走 API，不占搜索额度）和 HN 关键词。
+| field | meaning |
+| --- | --- |
+| `lane` | The heading this query's hits are filed under. Pick your own names. |
+| `q` | GitHub search syntax. `{since}` becomes `days` ago, `{recent}` becomes 7 days ago. |
+| `sort` | `stars` (default) for new repos, `updated` for "still climbing" — the latter only stores a star baseline and surfaces a repo again once it gains 300+ stars locally. |
+| `days` / `limit` | Search window in days, and how many hits this query may contribute. |
+| `must` | At least one of these must appear in the repo's name, description or topics. Topics are self-declared, so without this gate a query like "knowledge graph" drags in exam-prep repos. |
+| `needsAuth` | Skipped when no GitHub token is configured (unauthenticated search is 10 requests/minute). |
+| `releases` | Repositories whose releases you want (atom feed, does not spend search quota). |
+| `stories` | Hacker News keywords. |
+| `exploreLanes` | Lanes you did not ask for. Their rows are dimmed, tagged `探索`, ranked slightly lower, and promoted automatically once you open or drag them. |
+| `laneKeywords` | Optional words per lane. Without it, a lane is recognised in `preferences.md` by its own name. |
 
-改完下次拉取生效，不用重启。
+### Preferences
 
-## 一句话与图
+`~/Library/Application Support/OpenFeed/preferences.md` is plain text you edit by hand (menu: **当下偏好…**). Lines starting with `★` count as "what I want most right now"; plain `-` lines count as "also on my radar". Mentions of a lane (by name, or by any word in `laneKeywords`) tilt that lane's weight in the score, normalised so the most-mentioned lane gets the largest tilt. Edit, then the next fetch re-ranks.
 
-鼠标停上去那张卡，第一行是「它到底做了什么」——用 DeepSeek 把 README 开头压成一句中文（≤34 字），同一个项目算一次就存下来（`summaries.json`）。列表里那行说明也用它，所以整个 feed 是能一眼扫的中文。
+### Tokens
 
-密钥依次取：`OPENFEED_LLM_KEY` / `DEEPSEEK_API_KEY` 环境变量 → 钥匙串 → 本机 `~/.pi/agent/auth.json` 里 pi 的 DeepSeek 密钥。都没有就不生成，退回原始简介。菜单里能看到用的是哪一路。一天 60 条约 5 万 input token（¥0.1 上下）。
+- **GitHub** (optional, raises search from 10 to 30 requests/minute): `GITHUB_TOKEN` / `GH_TOKEN` environment variable, a token saved in the menu, or your local `gh auth token`.
+- **DeepSeek** (optional, powers the one-line summaries): `OPENFEED_LLM_KEY` or `DEEPSEEK_API_KEY`, or save a key in the menu. Without it you still get the feed — rows fall back to the repository description.
 
-## 当下偏好
+## Where the data lives
 
-菜单里「当下偏好…」（⌘,）打开一屏字，直接改，保存就重排。文件在 `~/Library/Application Support/OpenFeed/preferences.md`。
+State, all local:
 
-写法就是几条 `-` 开头的句子，现在最想要的用 `★` 开头。里面的线名（动效、可视化、记忆、图谱、Agent、编程智能体…）会被数出来，按「提到最多的那条线」归一成 0~0.55 的倾斜，直接加进价值分：多写一条 3D，动效视觉那条线就往上抬，别的线相对就下去。默认这份把视觉/动效/可视化/流程图/3D/生成式界面放在最前面。
+- `~/Library/Application Support/OpenFeed/` — `config.json`, `preferences.md`, `feed.json` (current panel), `seen.json` (every repo it has seen, with the star count at that time), `prefs.json` (learned weights), `summaries.json`, `ratings.json`.
+- `~/Library/Caches/OpenFeed/` — downloaded images, READMEs, avatars. Safe to delete; re-fetched on demand. Images are pruned to the current and previous day after every fetch, so the cache does not grow without bound.
 
-## 打分
+Deleting `seen.json` makes the app forget every repository it has seen.
 
-悬停卡的页脚右侧有 5 颗星，点第 N 颗就是 N 星，再点同一颗取消。打的分三处起作用：
-
-- 列表里那条 meta 会显示 `★★★★`，自己看得见打过什么分；
-- 价值分里 5 星 +8、1 星 −8，明天起同类内容排得更靠前/靠后；
-- 4~5 星给这条兴趣线加权重，1~2 星减权重——和拖拽是同一套偏好，只是更明确。
-
-打分时当天的顺序会被钉住（`feed.json` 的 `order`），列表不会因为分数一变就在你眼前跳。想恢复按分数排：菜单「重置排序与偏好」。
-
-## 排序与偏好
-
-价值分 = 星数 + 这一轮涨的星 + 新建时间 + 类型 + 你这条线的权重。权重存在 `prefs.json`，拖一次、点开一次都会动一点，每次拉取还会往 0 收 1%（偏好会变）。菜单里的「重置排序与偏好」清掉它。
-
-面板里同一天按你拖过的顺序；没拖过的按价值排。新拉进来的条目顶在当天最上面。
-
-## 图与缓存
-
-图存在 `~/Library/Caches/OpenFeed/`（不在 Application Support，删了不心疼）。只留今天和昨天：每次拉取后把更老的删掉；菜单里「图片缓存 12.4 MB · 清空」可以手动清。
-
-拉完会在后台预取最上面十几条的图（三条并发），鼠标停上去就不用等。
-
-## 数据在哪
-
-`~/Library/Application Support/OpenFeed/`：`feed.json`（当前 feed）、`seen.json`（见过的仓库与星数）、`thumbs/`（头像缓存）。删掉 `seen.json` 等于让它重新认识一遍项目。
-
-令牌依次取 `GITHUB_TOKEN` / `GH_TOKEN` 环境变量、钥匙串里手填的、本机 `gh auth token`。没有也能跑：只跑不带 `needsAuth` 的查询，额度 10 次/分。
-
-## 命令
+## Development
 
 ```bash
-swift build -c release --scratch-path ~/Library/Caches/openfeed/swiftpm
-OpenFeed --probe --fetch                     # 拉一次，打印每条查询拉回多少
-OpenFeed --probe --snapshot /tmp/shots       # 离屏渲染面板（深色 + 浅色各一张）
-OpenFeed --probe --dump --schedule           # 只读盘上数据 + 9 点规则的五个用例
+swift build -c release --scratch-path ~/Library/Caches/openfeed-build/swiftpm
+
+OpenFeed --probe --fetch                    # fetch once, print per-query hit counts
+OpenFeed --probe --snapshot /tmp/shots      # render the panel offscreen, dark + light
+OpenFeed --probe --dump --schedule          # read what is on disk, plus the 9am rule cases
+OpenFeed --probe --images                   # time image resolution for the top rows
 ```
+
+The UI and the model summaries are in Chinese for now; search queries, repositories and code comments are not tied to any language. Pull requests that make strings localisable are welcome.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
