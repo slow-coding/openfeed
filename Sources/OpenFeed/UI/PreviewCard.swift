@@ -34,7 +34,6 @@ private struct CardBody: View {
     var onRate: (Int) -> Void = { _ in }
 
     @State private var image: NSImage?
-    @State private var tried = false
     @State private var coreLine: String?
     @State private var rating: Int
     @State private var hoverStar: Int?
@@ -94,7 +93,6 @@ private struct CardBody: View {
                                                 userInfo: ["id": item.id, "line": line])
             }
             if let data = await picture { image = NSImage(data: data) }
-            tried = true
         }
     }
 
@@ -107,16 +105,9 @@ private struct CardBody: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: PreviewCard.width, height: PreviewCard.imageHeight)
                     .clipped()
-            } else {
-                VStack(spacing: 6) {
-                    Image(systemName: tried ? "photo" : "photo.on.rectangle.angled")
-                        .font(.system(size: 20, weight: .light))
-                        .foregroundStyle(.quaternary)
-                    Text(tried ? "这个仓库没有可用的图" : "找图…")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.quaternary)
-                }
             }
+            // 图没到之前只留一块底色：抓图在后台先跑，卡里不该等在那里。
+            // 真没有图的条目也就一直空着，不当故障说。
         }
         .frame(width: PreviewCard.width, height: PreviewCard.imageHeight)
         .clipped()

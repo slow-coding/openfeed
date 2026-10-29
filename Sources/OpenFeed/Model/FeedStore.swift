@@ -34,6 +34,14 @@ final class FeedStore: ObservableObject {
                   let line = note.userInfo?["line"] as? String else { return }
             Task { @MainActor in FeedStore.shared?.applyCoreLine(id: id, line: line) }
         }
+        warmImages()
+    }
+
+    /// 面板上的图提前抓好：等鼠标停上去才抓，卡里要空好几秒。
+    /// 抓过的直接从盘上命中，所以开机、拉完都跑一遍不贵。
+    private func warmImages() {
+        let ordered = sections().flatMap { $0.items }
+        Task.detached(priority: .utility) { await KeyImage.prewarm(items: ordered) }
     }
 
     /// AppDelegate 建的这一个；通知和自检口子都要能找到它。
@@ -298,7 +306,7 @@ final class FeedStore: ObservableObject {
 
         let merged = Merge.run(repos: repos, releases: releases, stories: stories,
                                existing: snapshot.items, seen: seen, prefs: prefs,
-                               order: snapshot.order, now: now)
+                               order: snapshot.order, exploreLanes: Set(config.exploreLanes), now: now)
         seen = merged.seen
         seen.save()
         lastAdded = merged.added
@@ -316,9 +324,7 @@ final class FeedStore: ObservableObject {
         )
 
         if succeeded {
-            Task.detached(priority: .utility) { [items = merged.items] in
-                await KeyImage.prewarm(items: items, limit: 20)
-            }
+            warmImages()
             Task { [weak self] in
                 guard let self else { return }
                 let pending = self.snapshot.items

@@ -20,38 +20,54 @@ enum KeyImage {
         "buymeacoffee", "ko-fi", "patreon", "discord.gg", ".svg"
     ]
 
-    /// 返回可缓存的数据；解析失败返回 nil，并让调用方把结论记下来别反复重试。
+    /// 返回可缓存的数据；没有图也落一条空标记，别每次悬停都重跑一遍。
     static func resolve(item: FeedItem, token: String?) async -> Data? {
         guard let slug = item.repoSlug else { return nil }
         // 同一个仓库解析过一次就不再解析：README 不会天天换主图。
         if let hit = ImageStore.shared.cached("key|\(slug)") { return hit }
+        if ImageStore.shared.cached("none|\(slug)") != nil { return nil }
         if let key = item.keyImagePath, key != "-" {
             if let hit = ImageStore.shared.cached("\(slug)|\(key)") { return hit }
         }
-        guard let markdown = await readme(slug: slug, token: token) else { return nil }
+        // README 一天里已经取过一次就走盘上那份，不再费一次接口往返。
+        guard let markdown = await readmeText(slug: slug, token: token) else { return nil }
         let candidates = images(in: markdown).filter { candidate in
             let lowered = candidate.lowercased()
             return !banned.contains { lowered.contains($0) }
         }
+        // 「没图」要下结论才落：只有服务器明确说没有、或拿到的确实不能用才算。
+        // 超时、断网这种没走到的先不落——一旦落了它就一天翻不了身。
+        var settled = candidates.isEmpty
         for source in candidates.prefix(3) {
-            if let data = await download(source, slug: slug, token: token), data.count > 8_000 {
-                _ = ImageStore.shared.store(data, key: "\(slug)|\(source)", itemID: item.id)
-                _ = ImageStore.shared.store(data, key: "key|\(slug)", itemID: item.id)
-                return data
+            switch await fetch(source, slug: slug, token: token) {
+            case .bytes(let data):
+                if data.count > 8_000 {
+                    _ = ImageStore.shared.store(data, key: "\(slug)|\(source)", itemID: item.id)
+                    _ = ImageStore.shared.store(data, key: "key|\(slug)", itemID: item.id)
+                    return data
+                }
+                settled = true          // 拿到了，但小到放不大
+            case .absent:
+                settled = true
+            case .unknown:
+                continue
             }
+        }
+        // shortcut: 图在 Git LFS 里的（拿到的是指针文本）算没图；真碰到了再补 media.githubusercontent。
+        if settled {
+            _ = ImageStore.shared.store(Data(), key: "none|\(slug)", itemID: item.id)
         }
         return nil
     }
 
-    /// 拉完就先把最上面十几条的图备好：等鼠标停上去再解析，要等两三秒。
-    static func prewarm(items: [FeedItem], limit: Int) async {
-        let targets = items
-            .filter { $0.kind == .repo }
-            .prefix(limit)
-        var queue = targets.makeIterator()
+    /// 面板上的图都提前备好：等鼠标停上去再解析，要等一两秒。
+    /// 不分种类：版本条目也得按仓库名找一遍 README，漏了它悬停时照样得等。
+    /// 列表只留两天，所以这里不用再封顶；抓过的一律从盘上命中。
+    static func prewarm(items: [FeedItem]) async {
+        var queue = items.makeIterator()
         await withTaskGroup(of: Void.self) { group in
             var running = 0
-            while running < 3, let item = queue.next() {
+            while running < 5, let item = queue.next() {
                 group.addTask { _ = await display(item) }
                 running += 1
             }
@@ -148,57 +164,75 @@ enum KeyImage {
 
     // MARK: - 取图
 
-    private static func download(_ source: String, slug: String, token: String?) async -> Data? {
-        if let url = URL(string: source), let host = url.host {
-            if host.contains("githubusercontent.com"), host.contains("raw.") || host == "github.com" {
-                return await contentsFile(path: source, slug: slug, token: token)
-            }
-            if host == "github.com" {
-                return await contentsFile(path: source, slug: slug, token: token)
-            }
-            guard let (data, response) = try? await session.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200, data.count < 6_000_000
-            else { return nil }
-            return downscaled(data)
-        }
-        return await contentsFile(path: source, slug: slug, token: token)
+    /// 一次取图的结果：拿到字节 / 服务器明确没有 / 根本没走到。
+    private enum Fetched {
+        case bytes(Data)
+        case absent
+        case unknown
     }
 
-    /// 相对路径 / raw 链接 → contents 接口拿 base64。
-    private static func contentsFile(path raw: String, slug: String, token: String?) async -> Data? {
+    /// 绝对链接能直连就直连：contents 接口对 1MB 以上的文件只回 size、不回内容，
+    /// 而 raw.githubusercontent 实际能跑（1.6MB 两秒），「它会挂死」是旧结论。
+    private static func fetch(_ source: String, slug: String, token: String?) async -> Fetched {
+        guard let url = URL(string: source), let host = url.host else {
+            return await viaContents(path: source, slug: slug, token: token)
+        }
+        if host == "raw.githubusercontent.com" || host == "media.githubusercontent.com" {
+            return await direct(url)
+        }
+        if host == "github.com" {
+            let parts = url.path.split(separator: "/").map(String.init)
+            // /o/r/blob|raw/<branch>/<path> → raw
+            if let index = parts.firstIndex(where: { $0 == "raw" || $0 == "blob" }), parts.count > index + 2,
+               let raw = URL(string: "https://raw.githubusercontent.com/\(parts[0])/\(parts[1])/\(parts[index + 1])/"
+                             + parts.dropFirst(index + 2).joined(separator: "/")) {
+                return await direct(raw)
+            }
+            // /user-attachments/... 不是仓库路径，只能直连
+            if parts.count >= 2, parts[0] != "user-attachments" {
+                return await viaContents(path: parts.dropFirst(2).joined(separator: "/"),
+                                         slug: "\(parts[0])/\(parts[1])", token: token)
+            }
+            return await direct(url)
+        }
+        return await direct(url)
+    }
+
+    private static func direct(_ url: URL) async -> Fetched {
+        guard let (data, response) = try? await session.data(from: url),
+              let code = (response as? HTTPURLResponse)?.statusCode
+        else { return .unknown }
+        if code == 404 || code == 410 { return .absent }
+        guard code == 200, data.count < 6_000_000, NSImage(data: data) != nil else { return .absent }
+        return .bytes(downscaled(data) ?? data)
+    }
+
+    /// 相对路径 → contents 接口拿 base64；接口不给内容（超过 1MB）就换 raw 直连。
+    private static func viaContents(path raw: String, slug: String, token: String?) async -> Fetched {
         var path = raw
         if path.hasPrefix("./") { path.removeFirst(2) }
         if path.hasPrefix("/") { path.removeFirst() }
-        // https://raw.githubusercontent.com/o/r/main/assets/x.png → assets/x.png
-        if let range = path.range(of: "raw.githubusercontent.com/") {
-            let rest = path[range.upperBound...]
-            let parts = rest.split(separator: "/").map(String.init)
-            if parts.count > 3 { path = parts.dropFirst(3).joined(separator: "/") }
-        }
-        // https://github.com/o/r/raw/main/assets/x.png （或 /blob/）
-        if path.hasPrefix("https://github.com/") {
-            let parts = path.replacingOccurrences(of: "https://github.com/", with: "")
-                .split(separator: "/").map(String.init)
-            if let index = parts.firstIndex(where: { $0 == "raw" || $0 == "blob" }), parts.count > index + 2 {
-                path = parts.dropFirst(index + 2).joined(separator: "/")
-            }
-        }
         path = path.components(separatedBy: "?").first ?? path
         guard !path.isEmpty,
               let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://api.github.com/repos/\(slug)/contents/\(encoded)")
-        else { return nil }
+        else { return .absent }
 
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         guard let (data, response) = try? await session.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let payload = try? JSONDecoder.openFeed.decode(Contents.self, from: data),
-              payload.size < 4_000_000,
-              let raw = Data(base64Encoded: payload.content, options: .ignoreUnknownCharacters)
-        else { return nil }
-        return downscaled(raw)
+              let code = (response as? HTTPURLResponse)?.statusCode
+        else { return .unknown }
+        if code == 404 { return .absent }
+        if code == 200,
+           let payload = try? JSONDecoder.openFeed.decode(Contents.self, from: data),
+           payload.size < 4_000_000,
+           let bytes = Data(base64Encoded: payload.content, options: .ignoreUnknownCharacters),
+           NSImage(data: bytes) != nil {
+            return .bytes(downscaled(bytes) ?? bytes)
+        }
+        return await direct(URL(string: "https://raw.githubusercontent.com/\(slug)/HEAD/\(encoded)")!)
     }
 
     /// 详情卡最宽 360pt，2 倍图，再大就是白占内存。
