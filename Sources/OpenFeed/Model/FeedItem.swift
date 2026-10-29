@@ -158,3 +158,22 @@ struct FeedSnapshot: Codable {
         lastCacheSweepCount = try box.decodeIfPresent(Int.self, forKey: .lastCacheSweepCount) ?? 0
     }
 }
+
+extension String {
+    /// 没有模型时列表显示的是仓库原文：去掉 emoji 和多余空白，太长就截断。
+    /// 有模型那句在 coreLine 里，不走这里。
+    var plainSummary: String {
+        var text = unicodeScalars.filter { scalar in
+            !(scalar.properties.isEmojiPresentation || scalar.properties.isEmojiModifier
+              || scalar.properties.isEmojiModifierBase
+              || (0x1F000...0x1FAFF).contains(scalar.value)
+              || (0x2600...0x27BF).contains(scalar.value))
+        }.reduce(into: "") { $0.unicodeScalars.append($1) }
+        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.count > 160 {
+            text = String(text.prefix(160)).trimmingCharacters(in: .whitespaces) + "…"
+        }
+        return text
+    }
+}

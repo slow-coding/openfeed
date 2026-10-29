@@ -27,17 +27,12 @@ struct SeenIndex: Codable {
 }
 
 enum Merge {
-    /// 只留今天和昨天：他自己说的，只看当天，最多回退一天。
+    /// 只留今天和昨天：默认只看当天，最多回退一天。
     static let keepDays = 2
-    /// 你的六条线。不在这里面的都是探索项。
-    static let coreLanes: Set<String> = [
-        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "vibe coding", "生成式界面", "动效视觉",
-        "可视化", "关注项目", "讨论"
-    ]
 
     static func run(repos: [RepoHit], releases: [ReleaseHit], stories: [StoryHit],
                     existing: [FeedItem], seen: SeenIndex, prefs: Preferences,
-                    order: [String: [String]], now: Date)
+                    order: [String: [String]], exploreLanes: Set<String>, now: Date)
         -> (items: [FeedItem], seen: SeenIndex, added: Int, order: [String: [String]]) {
         var index = seen
         let muted = seen.mutedSet
@@ -89,13 +84,13 @@ enum Merge {
                 lastSeen: now
             )
 
-            let exploration = !coreLanes.contains(hit.lane)
+            let exploration = exploreLanes.contains(hit.lane)
             var item = FeedItem(
                 id: "repo:\(key)",
                 kind: .repo,
                 title: hit.fullName.split(separator: "/").last.map(String.init) ?? hit.fullName,
                 subtitle: String(hit.fullName.split(separator: "/").first ?? ""),
-                summary: hit.description,
+                summary: hit.description.plainSummary,
                 url: hit.url,
                 imageURL: hit.imageURL,
                 avatarURL: hit.avatarURL,

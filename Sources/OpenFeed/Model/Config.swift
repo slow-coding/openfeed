@@ -38,91 +38,64 @@ struct FeedConfig: Codable {
     var releases: [String] = FeedConfig.defaultReleases
     var stories: [String] = FeedConfig.defaultStories
     var allowImages: Bool = true
+    /// 探索线：不在你写下的兴趣里、混进来供发现的线。列在这里的线压一档，标成「探索」。
+    var exploreLanes: [String] = FeedConfig.defaultExploreLanes
+    /// 某条线的一组词：preferences.md 提到这些词就算提到这条线。不配就只认线名。
+    var laneKeywords: [String: [String]] = [:]
+    /// 选填：任何兼容 OpenAI 的 /chat/completions 端点。空着就不调模型，一勺话退回仓库原文简介。
+    var llmBaseURL: String = ""
+    var llmModel: String = ""
 
+    /// 开箱就带两条探索线：你没写进 preferences.md 的那类，压一档混在流里。
+    static let defaultExploreLanes = ["本地优先", "可视化"]
+
+    init() {}
+
+    // 手写解码：config.json 少写一个字段不该让整份配置失效（旧版写下的文件里没有后两个键）。
+    init(from decoder: Decoder) throws {
+        let box = try decoder.container(keyedBy: CodingKeys.self)
+        hour = try box.decodeIfPresent(Int.self, forKey: .hour) ?? 9
+        queries = try box.decodeIfPresent([QueryConfig].self, forKey: .queries) ?? Self.defaultQueries
+        releases = try box.decodeIfPresent([String].self, forKey: .releases) ?? Self.defaultReleases
+        stories = try box.decodeIfPresent([String].self, forKey: .stories) ?? Self.defaultStories
+        allowImages = try box.decodeIfPresent(Bool.self, forKey: .allowImages) ?? true
+        exploreLanes = try box.decodeIfPresent([String].self, forKey: .exploreLanes)
+            ?? Self.defaultExploreLanes
+        laneKeywords = try box.decodeIfPresent([String: [String]].self, forKey: .laneKeywords) ?? [:]
+        llmBaseURL = try box.decodeIfPresent(String.self, forKey: .llmBaseURL) ?? ""
+        llmModel = try box.decodeIfPresent(String.self, forKey: .llmModel) ?? ""
+    }
+
+    /// 开箱的几条线，随便改：改成你每天真在找的东西，面板才像你说的那样。
     static let defaultQueries: [QueryConfig] = [
-        // 新出现的：45 天内建仓，按星排。这是「feed 有新东西」的主力。
-        .init(lane: "上下文记忆", q: "topic:agent-memory stars:>150 created:>{since}"),
-        .init(lane: "上下文记忆", q: "\"context engineering\" in:name,description,readme stars:>120 created:>{since}"),
-        .init(lane: "上下文记忆", q: "topic:llm-memory stars:>80 created:>{since}"),
-        .init(lane: "上下文记忆", q: "topic:context-engineering stars:>100 created:>{since}"),
-        .init(lane: "记忆图谱", q: "\"graph rag\" in:name,description stars:>150 created:>{since}",
-              must: ["llm", "rag", "agent", "memory", "embedding", "retrieval", "智能体"]),
-        .init(lane: "记忆图谱", q: "\"memory graph\" in:name,description stars:>20 created:>{since}",
-              must: ["llm", "rag", "agent", "memory", "embedding", "retrieval", "智能体"]),
-        .init(lane: "记忆图谱", q: "topic:graphrag stars:>20 created:>{since}",
-              must: ["llm", "rag", "agent", "memory", "embedding", "retrieval", "智能体"]),
-        .init(lane: "Agent", q: "topic:multi-agent stars:>250 created:>{since}"),
-        .init(lane: "Agent", q: "topic:agent-orchestration stars:>120 created:>{since}"),
-        .init(lane: "编程智能体", q: "topic:coding-agent stars:>300 created:>{since}"),
-        // vibe coding 出产物：一句话换来一个能看、能用的东西（单页 HTML、图、片），这是现在最核心的一条线。
-        .init(lane: "vibe coding", q: "topic:agent-skills stars:>100 created:>{since}", limit: 14,
-              must: ["html", "slide", "deck", "artifact", "design", "svg", "video", "motion", "film", "poster", "pdf", "chart", "image", "ui design"]),
-        .init(lane: "vibe coding", q: "topic:claude-skills stars:>100 created:>{since}",
-              must: ["html", "slide", "deck", "artifact", "design", "svg", "video", "motion", "film", "poster", "pdf", "chart", "image", "ui design"]),
-        .init(lane: "vibe coding", q: "topic:vibe-coding stars:>50 created:>{since}", limit: 20,
-              must: ["agent", "skill", "generat", "prompt", "llm", "mcp", "toolkit", "extension", "cli", "studio"]),
-        .init(lane: "生成式界面", q: "topic:generative-ui stars:>80 created:>{since}"),
-        .init(lane: "生成式界面", q: "topic:design-to-code stars:>50 created:>{since}", limit: 10),
-        .init(lane: "动效视觉", q: "topic:webgl stars:>300 created:>{since}", days: 90,
-              must: ["webgl", "shader", "three", "graphics", "canvas"]),
-        .init(lane: "动效视觉", q: "topic:animation stars:>250 created:>{since}", days: 90,
-              must: ["animation", "motion", "css", "svg", "transition", "lottie", "rive"]),
-        .init(lane: "动效视觉", q: "topic:threejs stars:>150 created:>{since}", days: 90,
-              must: ["three", "webgl", "3d", "shader", "r3f", "babylon"]),
-        // 下面几条是「我没提过、但你可能想要」的探索线。它们不按你的兴趣线出，混在流里；
-        // 你把它们拖上去或者点开，那条线的权重就涨，涨到 0.5 以上就不再当探索项。
+        // 新出现的：最近 45 天建仓，按星排。
+        .init(lane: "智能体", q: "topic:ai-agents stars:>200 created:>{since}"),
+        .init(lane: "智能体", q: "topic:llm-agent stars:>100 created:>{since}"),
+        .init(lane: "编程助手", q: "topic:coding-assistant stars:>200 created:>{since}"),
+        .init(lane: "开发工具", q: "\"developer tools\" in:description stars:>500 created:>{since}",
+              limit: 10),
+        // 老的但还在涨：不按创建日筛，靠本地记下的星数差。
+        .init(lane: "智能体", q: "topic:ai-agents stars:>2000 pushed:>{recent}", sort: "updated",
+              limit: 20, needsAuth: true),
+        // 探索线：你没写进 preferences.md 的那几条，压一档混在流里。
         .init(lane: "本地优先", q: "topic:local-first stars:>300 created:>{since}", days: 60,
               limit: 8, must: ["local-first", "offline", "sync", "crdt", "peer"]),
-        .init(lane: "端侧模型", q: "topic:on-device-ml stars:>200 created:>{since}", days: 60,
-              limit: 8, must: ["on-device", "mobile", "local", "coreml", "mlx", "edge"]),
-        .init(lane: "评测与观测", q: "topic:llm-evaluation stars:>150 created:>{since}", days: 60,
-              limit: 8, must: ["eval", "benchmark", "observability", "trace", "guardrail"]),
         .init(lane: "可视化", q: "topic:data-visualization stars:>250 created:>{since}", days: 60,
               limit: 10, must: ["chart", "dashboard", "visual", "plot", "graph", "canvas"]),
-        .init(lane: "可视化", q: "topic:diagram stars:>80 created:>{since}", days: 90,
-              limit: 10, must: ["diagram", "flowchart", "chart", "graph", "node", "layout"]),
-        // 老的但还在涨：不按创建日筛，靠本地星数差（见 Scoring）
-        .init(lane: "上下文记忆", q: "topic:agent-memory stars:>1000 pushed:>{recent}", sort: "updated",
-              limit: 20, needsAuth: true,
-              must: ["memory", "context", "agent", "llm", "记忆"]),
-        .init(lane: "编程智能体", q: "topic:coding-agent stars:>2000 pushed:>{recent}", sort: "updated", limit: 20, needsAuth: true),
-        .init(lane: "vibe coding", q: "topic:vibe-coding stars:>200 pushed:>{recent}", sort: "updated", limit: 20, needsAuth: true,
-              must: ["agent", "skill", "generat", "prompt", "llm", "mcp", "toolkit", "extension", "cli", "studio"]),
-        .init(lane: "生成式界面", q: "topic:generative-ui stars:>300 pushed:>{recent}", sort: "updated", limit: 20, needsAuth: true),
-        .init(lane: "记忆图谱", q: "topic:knowledge-graph stars:>1500 pushed:>{recent}", sort: "updated",
-              limit: 20, needsAuth: true,
-              must: ["memory", "rag", "llm", "agent", "ontology", "embedding"]),
     ]
 
     /// 这些有版本就够了，不需要它天天上新闻。release 走 atom，不占 API 额度。
     static let defaultReleases: [String] = [
         "modelcontextprotocol/servers",
-        "modelcontextprotocol/python-sdk",
-        "langchain-ai/langgraph",
-        "crewAIInc/crewAI",
-        "microsoft/autogen",
-        "agno-agi/agno",
-        "mem0ai/mem0",
-        "getzep/graphiti",
-        "letta-ai/letta",
-        "microsoft/graphrag",
-        "shadcn-ui/ui",
-        "CopilotKit/CopilotKit",
         "vercel/ai",
-        "All-Hands-AI/OpenHands",
         "openai/codex",
-        "google-gemini/gemini-cli",
-        "danielmiessler/fabric",
-        "modelcontextprotocol/inspector",
-        "motiondivision/motion",
+        "shadcn-ui/ui",
         "mrdoob/three.js"
     ]
 
     static let defaultStories: [String] = [
-        "agent memory",
-        "context engineering",
         "AI coding agent",
-        "generative UI"
+        "local-first software"
     ]
 
     static var directory: URL {

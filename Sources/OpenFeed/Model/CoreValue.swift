@@ -36,7 +36,7 @@ enum CoreValue {
 
     static func line(for item: FeedItem) async -> String? {
         if let hit = cached(item.id) { return hit }
-        guard let key = Self.apiKey else { return nil }
+        guard let key = Self.apiKey, Self.isConfigured else { return nil }
         let text: String?
         switch item.kind {
         case .repo:
@@ -57,7 +57,7 @@ enum CoreValue {
 
     /// 拉完一批先把仓库的一句话补上：等鼠标停上去再算，要等两秒。
     static func prewarm(items: [FeedItem], limit: Int) async {
-        guard apiKey != nil else { return }
+        guard apiKey != nil, isConfigured else { return }
         let targets = items.filter { item in
             item.kind == .repo && cached(item.id) == nil
         }.prefix(limit)
@@ -120,14 +120,17 @@ enum CoreValue {
     }
 
     private static func ask(key: String, system: String, user: String) async -> String? {
-        guard let url = URL(string: "https://api.deepseek.com/chat/completions") else { return nil }
+        // 端点完全由使用者配：DeepSeek、OpenRouter、本机 Ollama / LM Studio 都行。
+        guard let base = URL(string: FeedConfig.load().llmBaseURL) else { return nil }
+        let model = FeedConfig.load().llmModel
+        let url = base.appendingPathComponent("chat/completions")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body = Body(
-            model: "deepseek-chat",
+            model: model,
             temperature: 0.2,
             max_tokens: 90,
             messages: [Message(role: "system", content: system), Message(role: "user", content: user)]
@@ -143,7 +146,13 @@ enum CoreValue {
 
     // MARK: - 密钥
 
-    /// 依次找：环境变量 → 本 App 存进钥匙串的 → pi 自己的 auth.json。
+    /// 端点 + 模型名都在 config 里；没配就没这一层，不替谁选厂商。
+    static var isConfigured: Bool {
+        let config = FeedConfig.load()
+        return !config.llmBaseURL.isEmpty && !config.llmModel.isEmpty
+    }
+
+    /// 依次找：环境变量 → 本 App 存进钥匙串的。
     /// 只是用来写一句话摘要，拿不到就退回原始简介，不影响 feed 本身。
     static var apiKey: String? {
         for name in ["OPENFEED_LLM_KEY", "DEEPSEEK_API_KEY"] {
@@ -153,24 +162,14 @@ enum CoreValue {
                                           account: "apiKey"), !value.isEmpty {
             return value
         }
-        return piKey
+        return nil
     }
 
     static var keySource: String {
+        if !isConfigured { return "未配模型" }
         if ProcessInfo.processInfo.environment["OPENFEED_LLM_KEY"] != nil
             || ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"] != nil { return "环境变量" }
         if Auth.keychainToken(service: "app.openfeed.deepseek", account: "apiKey") != nil { return "钥匙串" }
-        if piKey != nil { return "pi 的 DeepSeek 密钥" }
         return "没有密钥"
-    }
-
-    private static var piKey: String? {
-        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".pi/agent/auth.json")
-        guard let data = try? Data(contentsOf: url),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let deepseek = object["deepseek"] as? [String: Any],
-              let key = deepseek["key"] as? String, !key.isEmpty
-        else { return nil }
-        return key
     }
 }

@@ -52,26 +52,35 @@ enum T {
         light: NSColor.black.withAlphaComponent(0.05)
     )
 
-    /// 兴趣线的点。同一档亮度，靠色相区分，不抢主色。
+    /// 兴趣线的点。同一档亮度，靠色相区分，不抢主色；颜色跟着线名走，不认具体叫什么。
     static func lane(_ name: String) -> Color {
-        switch name {
-        case "上下文记忆": return dynamic(dark: NSColor(srgbRed: 0.36, green: 0.80, blue: 0.76, alpha: 1),
-                                    light: NSColor(srgbRed: 0.10, green: 0.53, blue: 0.50, alpha: 1))
-        case "记忆图谱": return dynamic(dark: NSColor(srgbRed: 0.72, green: 0.63, blue: 0.98, alpha: 1),
-                                    light: NSColor(srgbRed: 0.44, green: 0.32, blue: 0.79, alpha: 1))
-        case "Agent": return dynamic(dark: NSColor(srgbRed: 0.50, green: 0.70, blue: 1.00, alpha: 1),
-                                     light: NSColor(srgbRed: 0.15, green: 0.42, blue: 0.80, alpha: 1))
-        case "编程智能体": return dynamic(dark: NSColor(srgbRed: 0.55, green: 0.85, blue: 0.58, alpha: 1),
-                                     light: NSColor(srgbRed: 0.16, green: 0.51, blue: 0.24, alpha: 1))
-        case "生成式界面": return dynamic(dark: NSColor(srgbRed: 0.98, green: 0.60, blue: 0.75, alpha: 1),
-                                     light: NSColor(srgbRed: 0.72, green: 0.20, blue: 0.42, alpha: 1))
-        case "动效视觉": return dynamic(dark: NSColor(srgbRed: 0.99, green: 0.72, blue: 0.42, alpha: 1),
-                                    light: NSColor(srgbRed: 0.72, green: 0.41, blue: 0.06, alpha: 1))
-        case "关注项目": return dynamic(dark: NSColor(srgbRed: 0.66, green: 0.72, blue: 0.85, alpha: 1),
-                                    light: NSColor(srgbRed: 0.35, green: 0.42, blue: 0.55, alpha: 1))
-        default: return Color.secondary
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in name.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
         }
+        let pair = lanePalette[Int(hash % UInt64(lanePalette.count))]
+        return dynamic(dark: pair.dark, light: pair.light)
     }
+
+    private static let lanePalette: [(dark: NSColor, light: NSColor)] = [
+        (NSColor(srgbRed: 0.36, green: 0.80, blue: 0.76, alpha: 1),
+         NSColor(srgbRed: 0.10, green: 0.53, blue: 0.50, alpha: 1)),
+        (NSColor(srgbRed: 0.72, green: 0.63, blue: 0.98, alpha: 1),
+         NSColor(srgbRed: 0.44, green: 0.32, blue: 0.79, alpha: 1)),
+        (NSColor(srgbRed: 0.50, green: 0.70, blue: 1.00, alpha: 1),
+         NSColor(srgbRed: 0.15, green: 0.42, blue: 0.80, alpha: 1)),
+        (NSColor(srgbRed: 0.55, green: 0.85, blue: 0.58, alpha: 1),
+         NSColor(srgbRed: 0.16, green: 0.51, blue: 0.24, alpha: 1)),
+        (NSColor(srgbRed: 0.98, green: 0.60, blue: 0.75, alpha: 1),
+         NSColor(srgbRed: 0.72, green: 0.20, blue: 0.42, alpha: 1)),
+        (NSColor(srgbRed: 0.99, green: 0.72, blue: 0.42, alpha: 1),
+         NSColor(srgbRed: 0.72, green: 0.41, blue: 0.06, alpha: 1)),
+        (NSColor(srgbRed: 0.66, green: 0.72, blue: 0.85, alpha: 1),
+         NSColor(srgbRed: 0.35, green: 0.42, blue: 0.55, alpha: 1)),
+        (NSColor(srgbRed: 0.93, green: 0.60, blue: 0.60, alpha: 1),
+         NSColor(srgbRed: 0.68, green: 0.24, blue: 0.24, alpha: 1)),
+    ]
 }
 
 extension Int {
