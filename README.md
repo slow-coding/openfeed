@@ -2,9 +2,9 @@
 
 A macOS menu-bar feed for people who read GitHub for a living. Every morning it pulls what shipped and what is climbing, keeps the few items that match the lanes you care about, and gets out of the way.
 
-![OpenFeed panel](assets/shots/panel-dark-en.png)
+![OpenFeed](assets/shots/banner.jpg)
 
-<sub>Light theme: [`assets/shots/panel-light-en.png`](assets/shots/panel-light-en.png). Chinese UI: the same panel follows the system language.</sub>
+<sub>Same panel without the hover card, dark and light: [`panel-dark-en.png`](assets/shots/panel-dark-en.png) · [`panel-light-en.png`](assets/shots/panel-light-en.png).</sub>
 
 ## Why
 
