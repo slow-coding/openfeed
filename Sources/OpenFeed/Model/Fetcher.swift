@@ -19,6 +19,7 @@ struct RepoHit {
 struct ReleaseHit {
     let repo: String
     let title: String
+    let tag: String
     let url: URL
     let notes: String
     let publishedAt: Date
@@ -133,21 +134,63 @@ struct Fetcher {
             .prefix(1)
             .compactMap { release in
                 guard let url = release.htmlURL else { return nil }
-                let title = release.name?.isEmpty == false ? release.name! : release.tagName
-                var notes = Self.plainText(release.body ?? "")
-                // 正文常常从版本号开头，标题里已经有了，删掉免得两行读起来一样。
-                notes = notes.replacingOccurrences(
-                    of: "^v?\\d+(\\.\\d+)*(\\s*\\(\\d{4}-\\d{2}-\\d{2}\\))?\\s*",
-                    with: "", options: .regularExpression
-                )
+                // 标题只写版本号等于没说：标题取正文的第一句，版本号退到下面那行。
+                // 正文剥完只剩版本号、依赖升级、合并提交的，这条不值得占一行。
+                guard let (headline, rest) = Self.headline(Self.plainText(release.body ?? "")) else { return nil }
                 return ReleaseHit(
                     repo: repo,
-                    title: title,
+                    title: headline,
+                    tag: release.tagName,
                     url: url,
-                    notes: notes,
+                    notes: rest,
                     publishedAt: release.publishedAt
                 )
             }
+    }
+
+    /// 把 release 正文里「不算内容」的开头剥干净，剩下的第一段当标题。
+    /// 剥完凑不出一句话，就说明这次发布没有可读的内容。
+    static func headline(_ notes: String, width: Int = 48) -> (title: String, rest: String)? {
+        let junk = [
+            "^v?\\d+(\\.\\d+)*(-[\\w.]+)?(\\s*\\(\\d{4}-\\d{2}-\\d{2}\\))?\\s*[:\\-—]?\\s*",
+            "^release\\s+v?\\d+(\\.\\d+)*(-[\\w.]+)?\\s*[:\\-—]?\\s*",
+            "^(release|chore|fix|feat|build|deps)(\\([\\w-]+\\))?\\s*[:：]?\\s*v?\\d+(\\.\\d+)*\\s*",
+            "^\\(\\d+\\)\\s*",
+            "^[\\w.-]+(@|==)\\s*v?\\d+(\\.\\d+)*\\s*",
+            "^[-*•]\\s+",
+            "^(?=[0-9a-f]*\\d)[0-9a-f]{5,10}\\s+",
+            "^(what'?s changed|changes since [\\w.]+|changes|patch changes|minor changes|major changes|other changes|changelog|new features|features|bug fixes|breaking changes)\\s*[:\\-—]?\\s*"
+        ]
+        var text = notes
+        var stripped = true
+        while stripped {
+            stripped = false
+            // 正文常常从空行 / 列表符开头，不 trim 掉后面那些开头规则都落不上。
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            for pattern in junk {
+                let next = text.replacingOccurrences(of: pattern, with: "",
+                                                     options: [.regularExpression, .caseInsensitive])
+                if next != text { text = next; stripped = true }
+            }
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noise = "^(updated? dependenc|merge commit|bump \\S+ from|release \\d)"
+        guard text.count >= 8,
+              text.range(of: noise, options: [.regularExpression, .caseInsensitive]) == nil
+        else { return nil }
+        guard text.count > width else { return (text, "") }
+        // 在能断的地方断，断不开就按宽度硬切。
+        let head = String(text.prefix(width))
+        let cut = head.lastIndex(where: { " 。;；,，—、".contains($0) })
+            .map { head.distance(from: head.startIndex, to: $0) + 1 } ?? width
+        var title = String(text.prefix(cut)).trimmingCharacters(in: .whitespacesAndNewlines)
+        // 「…paths on」这种尾巴上吊着一个虚词，退到上一个空格。
+        while title.count > 16, let tail = title.split(separator: " ").last, tail.count <= 3,
+              let space = title.lastIndex(of: " ") {
+            title = String(title[..<space])
+        }
+        let rest = String(text.dropFirst(title.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return (title, rest)
     }
 
     // MARK: - Hacker News

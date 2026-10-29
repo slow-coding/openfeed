@@ -51,6 +51,13 @@ struct FeedItem: Codable, Identifiable, Hashable {
     var rating: Int = 0
 
     var isRepo: Bool { kind == .repo }
+    /// 标题那一行：release 的 title 只有版本号，有模型摘要时把摘要提上来。
+    var headline: String { kind == .release ? (coreLine ?? title) : title }
+    /// 标题下面那一行：release 把改动的原文留着，其余照旧用模型那一句。
+    var detail: String? {
+        let text = kind == .release ? summary : (coreLine ?? summary)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+    }
     var isNewToday: Bool { Calendar.current.isDateInToday(foundAt) }
     /// 复制出去的那一小块：链接 + 一句话，粘到聊天里就能看。
     var copyText: String {
@@ -60,8 +67,7 @@ struct FeedItem: Codable, Identifiable, Hashable {
             return line.isEmpty ? "\(title)\n\(url.absoluteString)"
                                 : "\(title) — \(line)\n\(url.absoluteString)"
         case .release:
-            return line.isEmpty ? "\(subtitle) \(title)\n\(url.absoluteString)"
-                                : "\(subtitle) \(title) — \(line)\n\(url.absoluteString)"
+            return "\(subtitle) — \(headline)\n\(url.absoluteString)"
         case .story:
             return "\(title)\n\(url.absoluteString)"
         }

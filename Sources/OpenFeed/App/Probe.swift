@@ -66,6 +66,33 @@ enum Probe {
             ]
         }
 
+        if arguments.contains("--headline-check") {
+            // release 标题的规则：版本号开头要剥掉，剥完没内容就不该出现，标题不能吊在虚词上。
+            let cases: [(String, String?)] = [
+                ("v2.2.0 Security: Node.js runtime and CA certificate updates (October 2026) On October 20", "Security: Node.js runtime and CA certificate"),
+                ("Release 0.166.0-alpha.5.1", nil),
+                ("2.13.0", nil),
+                ("ai@7.0.156 Patch Changes - Updated dependencies [9f19c79]", nil),
+                ("Patch Changes - Updated dependencies", nil),
+                ("Changes since 1.2.17 release(checkpoint): 4.3.1 (9447) release(langgraph): 1.2.18", nil),
+                ("New Features - Added a built-in Vertex AI provider, configured with GOOGLE_CLOUD_PROJECT", "Added a built-in Vertex AI provider, configured"),
+                ("\n- Harness Agents in Teams and Workflows: ClaudeAgent and CodexAgent can now be members", "Harness Agents in Teams and Workflows:"),
+                ("f59b4 Thanks @mattzcarey! - Upgrade the MCP server to MCP TypeScript SDK v2", "Thanks @mattzcarey! - Upgrade the MCP server"),
+                ("added the missing retry so a dropped socket no longer wedges the worker", "added the missing retry so a dropped socket"),
+                ("feat(verify): stand in for DigitalOcean so Managed Agents can be verified by @enyst", "feat(verify): stand in for DigitalOcean"),
+                ("fix(core): allow trusted system paths on Android (Termux) for ripgrep resolution", "fix(core): allow trusted system paths")
+            ]
+            report["headlineCheck"] = cases.map { input, expected in
+                let got = Fetcher.headline(input)?.title
+                return [
+                    "in": String(input.prefix(46)),
+                    "want": expected ?? "(丢掉)",
+                    "got": got ?? "(丢掉)",
+                    "ok": got == expected
+                ]
+            }
+        }
+
         if arguments.contains("--cache-check") {
             let store = ImageStore.shared
             let fmt = DateFormatter()

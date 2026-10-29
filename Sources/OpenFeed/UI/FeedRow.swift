@@ -26,7 +26,7 @@ struct FeedRow: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(item.title)
+                        Text(item.headline)
                             .font(.system(size: T.titleSize, weight: .semibold))
                             .foregroundStyle(item.visitedAt == nil ? Color.primary : Color.primary.opacity(0.55))
                             .lineLimit(1)
@@ -36,7 +36,7 @@ struct FeedRow: View {
                     }
                     .frame(height: T.icon, alignment: .center)
 
-                    if let summary = item.coreLine ?? (item.summary.isEmpty ? nil : item.summary) {
+                    if let summary = item.detail {
                         Text(summary)
                             .font(.system(size: T.summarySize))
                             .foregroundStyle(.secondary)

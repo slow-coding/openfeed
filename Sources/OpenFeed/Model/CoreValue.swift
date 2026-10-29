@@ -44,7 +44,7 @@ enum CoreValue {
             text = await ask(key: key, system: repoPrompt, user: repoInput(item, readme: readme))
         case .release:
             text = await ask(key: key, system: releasePrompt,
-                             user: "项目：\(item.subtitle)\n版本：\(item.title)\n更新说明：\(item.summary)")
+                             user: "项目：\(item.subtitle)\n这次改了什么：\(item.title)\n更新说明：\(item.summary)")
         case .story:
             return nil
         }

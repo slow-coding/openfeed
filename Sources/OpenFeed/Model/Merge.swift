@@ -31,7 +31,7 @@ enum Merge {
     static let keepDays = 2
     /// 你的六条线。不在这里面的都是探索项。
     static let coreLanes: Set<String> = [
-        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "生成式界面", "动效视觉",
+        "上下文记忆", "记忆图谱", "Agent", "编程智能体", "vibe coding", "生成式界面", "动效视觉",
         "可视化", "关注项目", "讨论"
     ]
 
@@ -42,6 +42,8 @@ enum Merge {
         var index = seen
         let muted = seen.mutedSet
         var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        // release 的标题改成取正文了，副标题里也带上版本号：盘上旧行（副标题只有 owner/repo）整体丢掉，下次抓取按新规则重建。
+        byID = byID.filter { $0.value.kind != .release || $0.value.subtitle.contains(" ") }
         var added = 0
 
         // 同一条仓库可能被好几条查询命中：留第一次出现的那条兴趣线，星数取最大值。
@@ -114,13 +116,21 @@ enum Merge {
         }
 
         for hit in releases {
-            let key = "release:\(hit.repo.lowercased())@\(hit.title)"
-            if byID[key] != nil { continue }
+            let key = "release:\(hit.repo.lowercased())@\(hit.tag)"
+            let seen = byID[key]
+            if var old = seen {
+                // 标题的取法会改：同样的版本号，标题和原文跟着最新的取法走，看过没看过不变。
+                old.title = hit.title
+                old.subtitle = "\(hit.repo) \(hit.tag)"
+                old.summary = String(hit.notes.prefix(220))
+                byID[key] = old
+                continue
+            }
             var item = FeedItem(
                 id: key,
                 kind: .release,
                 title: hit.title,
-                subtitle: hit.repo,
+                subtitle: "\(hit.repo) \(hit.tag)",
                 summary: String(hit.notes.prefix(220)),
                 url: hit.url,
                 imageURL: URL(string: "https://opengraph.githubassets.com/1/\(hit.repo)"),
