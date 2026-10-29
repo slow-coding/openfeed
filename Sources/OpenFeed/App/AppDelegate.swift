@@ -122,11 +122,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func tooltip() -> String {
         if case .running(let text) = store.phase { return text }
-        guard let last = store.snapshot.lastSuccessAt else { return "OpenFeed · 还没拉过" }
+        guard let last = store.snapshot.lastSuccessAt else { return L.t("OpenFeed · 还没拉过", "OpenFeed · not fetched yet") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
-        return "OpenFeed · 上次 \(formatter.string(from: last)) · 每天 \(String(format: "%02d", store.config.hour)):00"
+        formatter.locale = Locale(identifier: L.isEN ? "en_US_POSIX" : "zh_Hans_CN")
+        formatter.dateFormat = L.isEN ? "MMM d HH:mm" : "M月d日 HH:mm"
+        let clock = "\(String(format: "%02d", store.config.hour)):00"
+        let stamp = formatter.string(from: last)
+        return L.t("OpenFeed · 上次 \(stamp) · 每天 \(clock)",
+                   "OpenFeed · last \(stamp) · daily at \(clock)")
     }
 
     @objc private func statusClicked() {
@@ -214,17 +217,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMenu(anchor: NSView?) {
         let menu = NSMenu()
 
-        let refreshItem = NSMenuItem(title: "现在拉取", action: #selector(menuRefresh), keyEquivalent: "r")
+        let refreshItem = NSMenuItem(title: L.t("现在拉取", "Fetch now"), action: #selector(menuRefresh), keyEquivalent: "r")
         refreshItem.target = self
         refreshItem.isEnabled = !store.phase.isRunning
         menu.addItem(refreshItem)
 
-        let readItem = NSMenuItem(title: "全部标为已读", action: #selector(menuMarkRead), keyEquivalent: "")
+        let readItem = NSMenuItem(title: L.t("全部标为已读", "Mark all as read"), action: #selector(menuMarkRead), keyEquivalent: "")
         readItem.target = self
         menu.addItem(readItem)
         menu.addItem(.separator())
 
-        let autoItem = NSMenuItem(title: "开机自启", action: #selector(menuToggleAutoStart), keyEquivalent: "")
+        let autoItem = NSMenuItem(title: L.t("开机自启", "Launch at login"), action: #selector(menuToggleAutoStart), keyEquivalent: "")
         autoItem.target = self
         autoItem.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(autoItem)
@@ -237,29 +240,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.state = hour == store.config.hour ? .on : .off
             hourMenu.addItem(item)
         }
-        let hourItem = NSMenuItem(title: "每天拉取时间", action: nil, keyEquivalent: "")
+        let hourItem = NSMenuItem(title: L.t("每天拉取时间", "Fetch time"), action: nil, keyEquivalent: "")
         hourItem.submenu = hourMenu
         menu.addItem(hourItem)
 
         menu.addItem(.separator())
 
-        let configItem = NSMenuItem(title: "打开关注列表…", action: #selector(menuOpenConfig), keyEquivalent: "")
+        let configItem = NSMenuItem(title: L.t("打开关注列表…", "Open watch list…"), action: #selector(menuOpenConfig), keyEquivalent: "")
         configItem.target = self
         menu.addItem(configItem)
 
-        let prefsItem = NSMenuItem(title: "当下偏好…", action: #selector(menuPreferences), keyEquivalent: ",")
+        let prefsItem = NSMenuItem(title: L.t("当下偏好…", "Preferences…"), action: #selector(menuPreferences), keyEquivalent: ",")
         prefsItem.target = self
         menu.addItem(prefsItem)
 
-        let folderItem = NSMenuItem(title: "打开数据文件夹", action: #selector(menuOpenFolder), keyEquivalent: "")
+        let folderItem = NSMenuItem(title: L.t("打开数据文件夹", "Open data folder"), action: #selector(menuOpenFolder), keyEquivalent: "")
         folderItem.target = self
         menu.addItem(folderItem)
 
-        let cacheItem = NSMenuItem(title: "图片缓存 \(store.cacheText) · 清空", action: #selector(menuClearCache), keyEquivalent: "")
+        let cacheItem = NSMenuItem(title: L.t("图片缓存 \(store.cacheText) · 清空", "Image cache \(store.cacheText) · clear"), action: #selector(menuClearCache), keyEquivalent: "")
         cacheItem.target = self
         menu.addItem(cacheItem)
 
-        let resetItem = NSMenuItem(title: "重置排序与偏好", action: #selector(menuResetPrefs), keyEquivalent: "")
+        let resetItem = NSMenuItem(title: L.t("重置排序与偏好", "Reset ranking & preferences"), action: #selector(menuResetPrefs), keyEquivalent: "")
         resetItem.target = self
         menu.addItem(resetItem)
 
@@ -267,18 +270,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         authItem.isEnabled = false
         menu.addItem(authItem)
 
-        let summaryItem = NSMenuItem(title: "一句话摘要：\(CoreValue.keySource)", action: nil, keyEquivalent: "")
+        let summaryItem = NSMenuItem(title: L.t("一句话摘要：\(CoreValue.keySource)", "One-line summary: \(CoreValue.keySource)"), action: nil, keyEquivalent: "")
         summaryItem.isEnabled = false
         menu.addItem(summaryItem)
 
         if case .failed(let text) = store.phase {
-            let errorItem = NSMenuItem(title: "上次失败：\(text)", action: nil, keyEquivalent: "")
+            let errorItem = NSMenuItem(title: L.t("上次失败：\(text)", "Last failure: \(text)"), action: nil, keyEquivalent: "")
             errorItem.isEnabled = false
             menu.addItem(errorItem)
         }
 
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "退出 OpenFeed", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: L.t("退出 OpenFeed", "Quit OpenFeed"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
         if let anchor {

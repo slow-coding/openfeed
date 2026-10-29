@@ -14,7 +14,7 @@ final class PreferencesWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "当下偏好"
+        window.title = L.t("当下偏好", "Preferences")
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 460, height: 380)
@@ -64,7 +64,7 @@ struct PreferencesView: View {
                     text = PreferencesDoc.fallback
                     dirty = true
                 } label: {
-                    Text("恢复默认")
+                    Text(L.t("恢复默认", "Reset to default"))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10)
@@ -74,7 +74,7 @@ struct PreferencesView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text("提到的线会加权重，保存后立刻重排")
+                Text(L.t("提到的线会加权重，保存后立刻重排", "Mentioned lanes gain weight; saving re-ranks right away"))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
 
@@ -83,7 +83,7 @@ struct PreferencesView: View {
                 Button {
                     if dirty { onSave(text) } else { NSApp.keyWindow?.performClose(nil) }
                 } label: {
-                    Text(dirty ? "保存并重排" : "关闭")
+                    Text(dirty ? L.t("保存并重排", "Save & re-rank") : "关闭")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(dirty ? T.accent : Color.secondary)
                         .padding(.horizontal, 12)

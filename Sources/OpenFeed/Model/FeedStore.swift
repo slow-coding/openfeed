@@ -250,7 +250,7 @@ final class FeedStore: ObservableObject {
         let queries = config.queries.filter { authorized || !$0.needsAuth }
         let total = queries.count
 
-        phase = .running("搜索 0/\(total)")
+        phase = .running(L.t("搜索 0/\(total)", "search 0/\(total)"))
 
         async let releaseHits = loadReleases(fetcher: fetcher, since: now.addingTimeInterval(-14 * 86_400))
         async let storyHits = loadStories(fetcher: fetcher, since: now.addingTimeInterval(-14 * 86_400))
@@ -277,7 +277,7 @@ final class FeedStore: ObservableObject {
             }
             for (query, result) in results {
                 done += 1
-                phase = .running("搜索 \(done)/\(total) · \(query.lane)")
+                phase = .running(L.t("搜索 \(done)/\(total) · \(query.lane)", "search \(done)/\(total) · \(query.lane)"))
                 switch result {
                 case .success(let hits):
                     repos.append(contentsOf: hits)
@@ -295,11 +295,15 @@ final class FeedStore: ObservableObject {
             }
         }
 
-        phase = .running("版本与讨论")
+        phase = .running(L.t("版本与讨论", "releases & discussions"))
         let releases = await releaseHits
         let stories = await storyHits
-        report.append("版本 \(releases.count) 条 / 讨论 \(stories.count) 条")
-        if !authorized { report.append("未授权：只跑 \(total) 条查询，额度 10 次/分") }
+        report.append(L.t("版本 \(releases.count) 条 / 讨论 \(stories.count) 条",
+                              "releases \(releases.count) / discussions \(stories.count)"))
+        if !authorized {
+            report.append(L.t("未授权：只跑 \(total) 条查询，额度 10 次/分",
+                             "unauthorized: \(total) queries only, 10/min"))
+        }
 
         prefs.decay()
         prefs.save()
@@ -342,8 +346,8 @@ final class FeedStore: ObservableObject {
             phase = .idle
             retryAfter = nil
         } else {
-            phase = .failed(rateLimited ? "搜索额度用完了，过一会再试"
-                                        : "搜索全挂了：\(report.first ?? "")")
+            phase = .failed(rateLimited ? L.t("搜索额度用完了，过一会再试", "Search quota used up — try again later")
+                                        : L.t("搜索全挂了：\(report.first ?? "")", "all searches failed: \(report.first ?? "")"))
             if !rateLimited { retryAfter = Date().addingTimeInterval(15 * 60) }
         }
         save()

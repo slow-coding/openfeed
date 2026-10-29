@@ -129,7 +129,7 @@ private struct CardBody: View {
                         .monospacedDigit()
                 }
                 if item.kind == .story, let points = item.stars {
-                    Text("\(points) 分")
+                    Text(L.t("\(points) 分", "\(points) points"))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -152,8 +152,8 @@ private struct CardBody: View {
 
     private var topics: [String] {
         var list: [String] = []
-        if item.isExploration { list.append("探索") }
-        list.append(item.lane)
+        if item.isExploration { list.append(L.t("探索", "explore")) }
+        list.append(L.lane(item.lane))
         return list
     }
 
@@ -162,10 +162,10 @@ private struct CardBody: View {
             ForEach(topics, id: \.self) { topic in
                 Text(topic)
                     .font(.system(size: 10))
-                    .foregroundStyle(topic == "探索" ? T.accent : .secondary)
+                    .foregroundStyle(topic == L.t("探索", "explore") ? T.accent : .secondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2.5)
-                    .background(Capsule().fill(topic == "探索" ? T.accent.opacity(0.12) : T.tile.opacity(0.8)))
+                    .background(Capsule().fill(topic == L.t("探索", "explore") ? T.accent.opacity(0.12) : T.tile.opacity(0.8)))
             }
             Spacer(minLength: 0)
         }
@@ -191,7 +191,7 @@ private struct CardBody: View {
                 .onHover { inside in
                     if inside { hoverStar = n } else if hoverStar == n { hoverStar = nil }
                 }
-                .help(n == rating ? "点一下取消" : "打 \(n) 星")
+                .help(n == rating ? L.t("点一下取消", "click to clear") : "打 \(n) 星")
             }
         }
         .animation(.easeOut(duration: 0.08), value: rating)
@@ -205,7 +205,7 @@ private struct CardBody: View {
 
     private var footer: some View {
         HStack(spacing: 6) {
-            Text("价值 \(Int(item.value.rounded()))")
+            Text(L.t("价值 \(Int(item.value.rounded()))", "value \(Int(item.value.rounded()))"))
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()

@@ -6,7 +6,23 @@ enum PreferencesDoc {
     static var fileURL: URL { Paths.root.appendingPathComponent("preferences.md") }
 
     /// 第一次运行时写下的模板：几行说明，不替你选兴趣。
-    static let fallback = """
+    static var fallback: String {
+        L.isEN ? fallbackEN : fallbackZH
+    }
+
+    private static let fallbackEN = """
+    # What I am watching
+
+    One line per thing you actually look for.
+
+    Lines starting with ★ count as "what I want most right now"; plain - lines count as "also on the radar".
+
+    Mention a lane by its name (the `lane` field in config.json) and that lane's weight goes up.
+    To teach it more spellings, give the lane a word list under `laneKeywords` in config.json.
+    The next fetch re-ranks after you edit this file.
+    """
+
+    private static let fallbackZH = """
     # 我在留意什么
 
     一行一条，写你每天真在翻的东西。

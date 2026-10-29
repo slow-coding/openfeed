@@ -2,7 +2,9 @@
 
 A macOS menu-bar feed for people who read GitHub for a living. Every morning it pulls what shipped and what is climbing, keeps the few items that match the lanes you care about, and gets out of the way.
 
-![OpenFeed panel](assets/shots/panel-dark.png)
+![OpenFeed panel](assets/shots/panel-dark-en.png)
+
+<sub>Light theme: [`assets/shots/panel-light-en.png`](assets/shots/panel-light-en.png). Chinese UI: the same panel follows the system language.</sub>
 
 ## Why
 
@@ -61,6 +63,8 @@ The whole feed is defined by one JSON file, `~/Library/Application Support/OpenF
 | `stories` | Hacker News keywords. |
 | `exploreLanes` | Lanes you did not ask for. Their rows are dimmed, tagged `探索`, ranked slightly lower, and promoted automatically once you open or drag them. |
 | `laneKeywords` | Optional words per lane. Without it, a lane is recognised in `preferences.md` by its own name. |
+| `uiLang` | `"en"` or `"zh"` for the interface and the model-written summaries. Empty follows the system language. |
+| `llmBaseURL` / `llmModel` | Any OpenAI-compatible `/chat/completions` endpoint, e.g. `https://api.deepseek.com` + `deepseek-chat`, or a local Ollama / LM Studio server. Left empty, nothing is sent and rows show the repository description as-is. |
 
 ### Preferences
 
@@ -91,7 +95,7 @@ OpenFeed --probe --dump --schedule          # read what is on disk, plus the 9am
 OpenFeed --probe --images                   # time image resolution for the top rows
 ```
 
-The UI and the model summaries are in Chinese for now; search queries, repositories and code comments are not tied to any language. Pull requests that make strings localisable are welcome.
+The interface is bilingual (English and Chinese) and follows the system language; set `uiLang` in `config.json` to pin it. Model-written one-liners follow the same setting. `OPENFEED_LANG=en` overrides both, which is how the screenshots above were rendered.
 
 ## License
 

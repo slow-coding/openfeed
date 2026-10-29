@@ -15,10 +15,10 @@ enum Auth {
     }
 
     static var source: String {
-        if ProcessInfo.processInfo.environment["GITHUB_TOKEN"] != nil { return "环境变量" }
-        if keychainToken != nil { return "钥匙串" }
+        if ProcessInfo.processInfo.environment["GITHUB_TOKEN"] != nil { return L.t("环境变量", "environment") }
+        if keychainToken != nil { return L.t("钥匙串", "keychain") }
         if ghCLIToken != nil { return "gh CLI" }
-        return "未授权"
+        return L.t("未授权", "unauthorized")
     }
 
     static var keychainToken: String? {

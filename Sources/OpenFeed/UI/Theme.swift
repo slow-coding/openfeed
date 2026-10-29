@@ -97,27 +97,34 @@ extension Date {
     /// 刚刚 / 3 小时前 / 昨天 / 5 天前 / 10月12日
     var agoText: String {
         let seconds = Date().timeIntervalSince(self)
-        if seconds < 90 { return "刚刚" }
-        if seconds < 3_600 { return "\(Int(seconds / 60)) 分钟前" }
-        if seconds < 86_400 { return "\(Int(seconds / 3_600)) 小时前" }
+        if seconds < 90 { return L.t("刚刚", "just now") }
+        if seconds < 3_600 {
+            let n = Int(seconds / 60)
+            return L.t("\(n) 分钟前", "\(n) min ago")
+        }
+        if seconds < 86_400 {
+            let n = Int(seconds / 3_600)
+            return L.t("\(n) 小时前", "\(n) h ago")
+        }
         let days = Int(seconds / 86_400)
-        if days == 1 { return "昨天" }
-        if days < 7 { return "\(days) 天前" }
+        if days == 1 { return L.t("昨天", "yesterday") }
+        if days < 7 { return L.t("\(days) 天前", "\(days) d ago") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = Calendar.current.isDate(self, equalTo: Date(), toGranularity: .year)
-            ? "M月d日" : "yyyy年M月d日"
+        formatter.locale = Locale(identifier: L.isEN ? "en_US_POSIX" : "zh_Hans_CN")
+        let sameYear = Calendar.current.isDate(self, equalTo: Date(), toGranularity: .year)
+        formatter.dateFormat = L.isEN ? (sameYear ? "MMM d" : "MMM d, yyyy")
+                                      : (sameYear ? "M月d日" : "yyyy年M月d日")
         return formatter.string(from: self)
     }
 
     /// 今天 / 昨天 / 10月25日
     var dayHeader: String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(self) { return "今天" }
-        if calendar.isDateInYesterday(self) { return "昨天" }
+        if calendar.isDateInToday(self) { return L.t("今天", "Today") }
+        if calendar.isDateInYesterday(self) { return L.t("昨天", "Yesterday") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "M月d日 EEEE"
+        formatter.locale = Locale(identifier: L.isEN ? "en_US_POSIX" : "zh_Hans_CN")
+        formatter.dateFormat = L.isEN ? "MMM d, EEEE" : "M月d日 EEEE"
         return formatter.string(from: self)
     }
 }

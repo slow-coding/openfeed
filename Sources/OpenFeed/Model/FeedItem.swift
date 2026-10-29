@@ -12,9 +12,9 @@ enum FeedKind: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .repo: return "仓库"
-        case .release: return "版本"
-        case .story: return "讨论"
+        case .repo: return L.t("仓库", "repos")
+        case .release: return L.t("版本", "releases")
+        case .story: return L.t("讨论", "discussions")
         }
     }
 }

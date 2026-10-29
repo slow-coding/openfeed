@@ -133,19 +133,19 @@ enum ValueModel {
         let docBoost = PreferencesDoc.boost(for: item.lane)
         if docBoost > 0 {
             total += 12 * docBoost
-            parts.append((12 * docBoost, "你把它写进了当下偏好"))
+            parts.append((12 * docBoost, L.t("你把它写进了当下偏好", "you wrote this lane into your preferences")))
         }
 
         // 你打的分是明确信号：5 星 +8，1 星 -8
         if item.rating > 0 {
             let lift = Double(item.rating - 3) * 4
             total += lift
-            if lift > 0 { parts.append((lift, "你打了 \(item.rating) 星")) }
+            if lift > 0 { parts.append((lift, L.t("你打了 \(item.rating) 星", "you rated it \(item.rating) stars"))) }
         }
 
         if item.isExploration, !prefs.isPromoted(lane: item.lane) {
             total *= 0.82
-            parts.append((0, "探索项"))
+            parts.append((0, L.t("探索项", "exploration")))
         }
 
         let top = parts.sorted { $0.0 > $1.0 }.prefix(2).map { $0.1 }
@@ -155,21 +155,25 @@ enum ValueModel {
     private static func reason(_ key: String, item: FeedItem, amount: Double) -> String {
         switch key {
         case "stars":
-            return "\((item.stars ?? 0).starText) 星"
+            return L.t("\((item.stars ?? 0).starText) 星", "\((item.stars ?? 0).starText) stars")
         case "delta":
-            return "这轮涨 \((item.starsDelta ?? 0).starText) 星"
+            return L.t("这轮涨 \((item.starsDelta ?? 0).starText) 星",
+                       "up \((item.starsDelta ?? 0).starText) this round")
         case "fresh":
             switch item.kind {
-            case .repo: return "新仓库，\(item.createdAt.agoText)建的"
-            case .release: return "\(item.createdAt.agoText)发布"
-            case .story: return "\(item.createdAt.agoText)"
+            case .repo:
+                return L.t("新仓库，\(item.createdAt.agoText)建的", "new repo, created \(item.createdAt.agoText)")
+            case .release:
+                return L.t("\(item.createdAt.agoText)发布", "released \(item.createdAt.agoText)")
+            case .story:
+                return item.createdAt.agoText
             }
         case "points":
-            return "\(item.stars ?? 0) 分"
+            return L.t("\(item.stars ?? 0) 分", "\(item.stars ?? 0) points")
         case let lane where lane.hasPrefix("lane:"):
-            return "你在「\(item.lane)」线给它加分了"
+            return L.t("你在「\(item.lane)」线给它加分了", "you rate the \(L.lane(item.lane)) lane high")
         case "explore":
-            return "探索项，你拖过这类"
+            return L.t("探索项，你拖过这类", "exploration you've dragged before")
         default:
             return ""
         }

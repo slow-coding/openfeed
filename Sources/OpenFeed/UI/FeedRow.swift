@@ -75,26 +75,26 @@ struct FeedRow: View {
             NSItemProvider(object: item.id as NSString)
         }
         .contextMenu {
-            Button("在浏览器打开") { onOpen() }
-            Button("复制链接与一句话") {
+            Button(L.t("在浏览器打开", "Open in browser")) { onOpen() }
+            Button(L.t("复制链接与一句话", "Copy link & summary")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(item.copyText, forType: .string)
             }
             Divider()
-            Menu("评分") {
+            Menu(L.t("评分", "Rating")) {
                 ForEach(1...5, id: \.self) { n in
-                    Button("\(String(repeating: "★", count: n))\(item.rating == n ? "（当前）" : "")") {
+                    Button("\(String(repeating: "★", count: n))\(item.rating == n ? L.t("（当前）", " (current)") : "")") {
                         onRate(n)
                     }
                 }
                 if item.rating > 0 {
                     Divider()
-                    Button("清除评分") { onRate(0) }
+                    Button(L.t("清除评分", "Clear rating")) { onRate(0) }
                 }
             }
             if item.isRepo {
                 Divider()
-                Button("不再显示 \(item.title)") { onMute() }
+                Button(L.t("不再显示 \(item.title)", "Hide \(item.title)")) { onMute() }
             }
         }
     }
@@ -131,7 +131,7 @@ struct FeedRow: View {
         .onHover { inside in
             hoveringRating = inside
         }
-        .help(hoveringRating ? "点第 N 颗打 N 星，再点一次取消" : "鼠标放上去可以打分")
+        .help(hoveringRating ? L.t("点第 N 颗打 N 星，再点一次取消", "Click a star to rate; click it again to clear") : L.t("鼠标放上去可以打分", "Hover to rate"))
     }
 
     private func color(for n: Int) -> Color {
@@ -155,7 +155,7 @@ struct FeedRow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(copied ? "已复制" : "复制链接与一句话")
+        .help(copied ? L.t("已复制", "Copied") : L.t("复制链接与一句话", "Copy link & summary"))
     }
 
     @ViewBuilder
@@ -172,7 +172,7 @@ struct FeedRow: View {
             }
         case .story:
             if let points = item.stars {
-                Text("\(points) 分")
+                Text(L.t("\(points) 分", "\(points) points"))
                     .font(.system(size: T.metaSize, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
@@ -187,7 +187,7 @@ struct FeedRow: View {
     private var meta: some View {
         HStack(spacing: 5) {
             if item.isExploration {
-                Text("探索")
+                Text(L.t("探索", "explore"))
                     .font(.system(size: T.metaSize, weight: .medium))
                     .foregroundStyle(T.accent)
                 separator
@@ -195,7 +195,7 @@ struct FeedRow: View {
             Circle()
                 .fill(T.lane(item.lane))
                 .frame(width: 4, height: 4)
-            Text(item.lane)
+            Text(L.lane(item.lane))
                 .foregroundStyle(.secondary.opacity(0.85))
             separator
             Text(item.subtitle)
@@ -219,7 +219,7 @@ struct FeedRow: View {
             }
             if item.visitedAt == nil, item.isNewToday {
                 separator
-                Text("价值 \(Int(item.value.rounded()))")
+                Text(L.t("价值 \(Int(item.value.rounded()))", "value \(Int(item.value.rounded()))"))
                     .foregroundStyle(.quaternary)
                     .monospacedDigit()
             }

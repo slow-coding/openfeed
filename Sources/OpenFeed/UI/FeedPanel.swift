@@ -2,12 +2,18 @@ import SwiftUI
 import AppKit
 
 enum FeedFilter: String, CaseIterable, Identifiable {
-    case all = "全部"
-    case repo = "仓库"
-    case release = "版本"
-    case story = "讨论"
+    case all, repo, release, story
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return L.t("全部", "All")
+        case .repo: return L.t("仓库", "Repos")
+        case .release: return L.t("版本", "Releases")
+        case .story: return L.t("讨论", "Discussions")
+        }
+    }
 
     var kind: FeedKind? {
         switch self {
@@ -62,7 +68,7 @@ struct FeedPanel: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("今天")
+                Text(L.t("今天", "Today"))
                     .font(.system(size: 17, weight: .semibold))
                 Text(statusLine)
                     .font(.system(size: T.metaSize))
@@ -88,7 +94,7 @@ struct FeedPanel: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("现在拉一次")
+            .help(L.t("现在拉一次", "Fetch now"))
             .disabled(store.phase.isRunning)
 
             Button {
@@ -101,7 +107,7 @@ struct FeedPanel: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("更多")
+            .help(L.t("更多", "More"))
             .background(MenuAnchorView(anchor: menuAnchor).frame(width: 0, height: 0))
         }
         .padding(.horizontal, T.pad)
@@ -112,19 +118,21 @@ struct FeedPanel: View {
     private var statusLine: String {
         if case .running(let text) = store.phase { return text }
         if case .failed(let text) = store.phase {
-            return store.snapshot.items.isEmpty ? text : "上次没拉全：\(text)"
+            return store.snapshot.items.isEmpty ? text : L.t("上次没拉全：\(text)", "Partial fetch: \(text)")
         }
-        guard let last = store.snapshot.lastSuccessAt else { return "还没拉过 · 每天 09:00 自动" }
+        guard let last = store.snapshot.lastSuccessAt
+        else { return L.t("还没拉过 · 每天 09:00 自动", "not fetched yet · auto at 09:00 daily") }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "M月d日"
+        formatter.locale = Locale(identifier: L.isEN ? "en_US_POSIX" : "zh_Hans_CN")
+        formatter.dateFormat = L.isEN ? "MMM d" : "M月d日"
         let clock = DateFormatter()
         clock.dateFormat = "HH:mm"
-        let fresh = Calendar.current.isDateInToday(last) ? "\(clock.string(from: last)) 更新"
-            : "\(formatter.string(from: last)) 更新"
+        let stamp = Calendar.current.isDateInToday(last) ? clock.string(from: last)
+            : formatter.string(from: last)
+        let fresh = L.t("\(stamp) 更新", "updated \(stamp)")
         let new = store.unread(todayOnly: true)
-        let leading = new > 0 ? "\(new) 条没看 · " : ""
-        return "\(leading)\(fresh) · 每天 09:00 自动"
+        let leading = new > 0 ? L.t("\(new) 条没看 · ", "\(new) unread · ") : ""
+        return "\(leading)\(fresh) · " + L.t("每天 09:00 自动", "auto at 09:00 daily")
     }
 
     // MARK: - 筛选
@@ -147,7 +155,7 @@ struct FeedPanel: View {
             filter = option
         } label: {
             HStack(spacing: 4) {
-                Text(option.rawValue)
+                Text(option.label)
                 Text("\(count)")
                     .monospacedDigit()
                     .foregroundStyle(selected ? T.accent.opacity(0.75) : Color.secondary.opacity(0.7))
@@ -171,7 +179,7 @@ struct FeedPanel: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if shownSections.isEmpty {
-                    Text("这一类今天没有")
+                    Text(L.t("这一类今天没有", "Nothing in this lane today"))
                         .font(.system(size: T.metaSize))
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -208,7 +216,7 @@ struct FeedPanel: View {
                     }
                 }
                 if !shownSections.isEmpty {
-                    Text("最近 2 天 · 共 \(totalShown) 条")
+                    Text(L.t("最近 2 天 · 共 \(totalShown) 条", "last 2 days · \(totalShown) items"))
                         .font(.system(size: T.metaSize))
                         .foregroundStyle(.quaternary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -224,11 +232,11 @@ struct FeedPanel: View {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.quaternary)
-            Text(store.phase.isRunning ? "正在拉第一批" : "还没拉过")
+            Text(store.phase.isRunning ? L.t("正在拉第一批", "Fetching for the first time") : L.t("还没拉过", "not fetched yet"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
             Button(action: onRefresh) {
-                Text("现在拉取")
+                Text(L.t("现在拉取", "Fetch now"))
                     .font(.system(size: 11.5, weight: .medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)

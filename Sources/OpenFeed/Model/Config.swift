@@ -42,12 +42,14 @@ struct FeedConfig: Codable {
     var exploreLanes: [String] = FeedConfig.defaultExploreLanes
     /// 某条线的一组词：preferences.md 提到这些词就算提到这条线。不配就只认线名。
     var laneKeywords: [String: [String]] = [:]
+    /// 界面语言："en" / "zh"；空着跟系统语言。
+    var uiLang: String = ""
     /// 选填：任何兼容 OpenAI 的 /chat/completions 端点。空着就不调模型，一勺话退回仓库原文简介。
     var llmBaseURL: String = ""
     var llmModel: String = ""
 
     /// 开箱就带两条探索线：你没写进 preferences.md 的那类，压一档混在流里。
-    static let defaultExploreLanes = ["本地优先", "可视化"]
+    static let defaultExploreLanes = ["Local-first", "Visualization"]
 
     init() {}
 
@@ -62,6 +64,7 @@ struct FeedConfig: Codable {
         exploreLanes = try box.decodeIfPresent([String].self, forKey: .exploreLanes)
             ?? Self.defaultExploreLanes
         laneKeywords = try box.decodeIfPresent([String: [String]].self, forKey: .laneKeywords) ?? [:]
+        uiLang = try box.decodeIfPresent(String.self, forKey: .uiLang) ?? ""
         llmBaseURL = try box.decodeIfPresent(String.self, forKey: .llmBaseURL) ?? ""
         llmModel = try box.decodeIfPresent(String.self, forKey: .llmModel) ?? ""
     }
@@ -69,18 +72,18 @@ struct FeedConfig: Codable {
     /// 开箱的几条线，随便改：改成你每天真在找的东西，面板才像你说的那样。
     static let defaultQueries: [QueryConfig] = [
         // 新出现的：最近 45 天建仓，按星排。
-        .init(lane: "智能体", q: "topic:ai-agents stars:>200 created:>{since}"),
-        .init(lane: "智能体", q: "topic:llm-agent stars:>100 created:>{since}"),
-        .init(lane: "编程助手", q: "topic:coding-assistant stars:>200 created:>{since}"),
-        .init(lane: "开发工具", q: "\"developer tools\" in:description stars:>500 created:>{since}",
+        .init(lane: "Agents", q: "topic:ai-agents stars:>200 created:>{since}"),
+        .init(lane: "Agents", q: "topic:llm-agent stars:>100 created:>{since}"),
+        .init(lane: "Coding agents", q: "topic:coding-assistant stars:>200 created:>{since}"),
+        .init(lane: "Dev tools", q: "\"developer tools\" in:description stars:>500 created:>{since}",
               limit: 10),
         // 老的但还在涨：不按创建日筛，靠本地记下的星数差。
-        .init(lane: "智能体", q: "topic:ai-agents stars:>2000 pushed:>{recent}", sort: "updated",
+        .init(lane: "Agents", q: "topic:ai-agents stars:>2000 pushed:>{recent}", sort: "updated",
               limit: 20, needsAuth: true),
         // 探索线：你没写进 preferences.md 的那几条，压一档混在流里。
-        .init(lane: "本地优先", q: "topic:local-first stars:>300 created:>{since}", days: 60,
+        .init(lane: "Local-first", q: "topic:local-first stars:>300 created:>{since}", days: 60,
               limit: 8, must: ["local-first", "offline", "sync", "crdt", "peer"]),
-        .init(lane: "可视化", q: "topic:data-visualization stars:>250 created:>{since}", days: 60,
+        .init(lane: "Visualization", q: "topic:data-visualization stars:>250 created:>{since}", days: 60,
               limit: 10, must: ["chart", "dashboard", "visual", "plot", "graph", "canvas"]),
     ]
 

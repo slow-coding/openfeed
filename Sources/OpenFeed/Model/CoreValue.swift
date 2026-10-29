@@ -41,14 +41,18 @@ enum CoreValue {
         switch item.kind {
         case .repo:
             let readme = await KeyImage.readmeText(slug: item.repoSlug ?? "", token: Auth.token) ?? ""
-            text = await ask(key: key, system: repoPrompt, user: repoInput(item, readme: readme))
+            text = await ask(key: key, system: L.isEN ? repoPrompt : repoPromptZH,
+                             user: L.isEN ? repoInputEN(item, readme: readme) : repoInput(item, readme: readme))
         case .release:
-            text = await ask(key: key, system: releasePrompt,
-                             user: "项目：\(item.subtitle)\n这次改了什么：\(item.title)\n更新说明：\(item.summary)")
+            text = await ask(key: key,
+                             system: L.isEN ? releasePrompt : releasePromptZH,
+                             user: L.isEN
+                                 ? "Project: \(item.subtitle)\nWhat changed: \(item.title)\nNotes: \(item.summary)"
+                                 : "项目：\(item.subtitle)\n这次改了什么：\(item.title)\n更新说明：\(item.summary)")
         case .story:
             return nil
         }
-        guard let text, !text.isEmpty, !text.contains("看不清") else { return nil }
+        guard let text, !text.isEmpty, !text.contains("看不清"), !text.lowercased().contains("unclear") else { return nil }
         let cleaned = clean(text)
         guard cleaned.count >= 4 else { return nil }
         remember(item.id, line: cleaned)
@@ -85,6 +89,16 @@ enum CoreValue {
         return line
     }
 
+    private static func repoInputEN(_ item: FeedItem, readme: String) -> String {
+        """
+        Repository: \(item.repoSlug ?? item.title)
+        Description: \(item.summary.isEmpty ? "none" : item.summary)
+        Language: \(item.language ?? "unknown")
+        README excerpt:
+        \(String(readme.prefix(1_200)))
+        """
+    }
+
     private static func repoInput(_ item: FeedItem, readme: String) -> String {
         """
         仓库：\(item.repoSlug ?? item.title)
@@ -95,15 +109,17 @@ enum CoreValue {
         """
     }
 
+    /// 摘要语言跟着界面走；「看不清」是两边约定的哨兵：模型说不知道，就不存这条。
     private static let repoPrompt = """
-    你在给一个技术 feed 写一句话摘要。用中文说清这个项目到底做了什么、给谁用。
-    不超过 34 个字，一句话，结尾不加句号。不复述标语，不用「赋能/一站式/全新/让…更简单」这类空话。
-    不超过两个专有名词，英文名保留原样。信息不足就回「看不清这个仓库具体做什么」。只输出那一句。
+    You write the one-line summary of a repository for a technical feed. Say what it actually does, and for whom.
+    At most 20 words, one sentence, no trailing period. Do not repeat the tagline; no "empowering / all-in-one / seamless" filler.
+    At most two proper nouns. If the material is not enough, reply exactly "unclear what this repository does". Output only that line.
     """
 
     private static let releasePrompt = """
-    你在给一个技术 feed 写一句话摘要。用中文说清这个版本改了什么，不超过 30 个字，一句话，结尾不加句号。
-    只挑最要紧的一两条变化，别罗列。信息不足就回「看不清」。只输出那一句。
+    You write the one-line summary of a release for a technical feed. Say what changed in this version.
+    At most 18 words, one sentence, no trailing period. Pick the one or two changes that matter; do not list them all.
+    If the material is not enough, reply exactly "unclear". Output only that line.
     """
 
     private struct Message: Encodable { let role: String; let content: String }
@@ -118,6 +134,17 @@ enum CoreValue {
         struct Message: Decodable { let content: String }
         let choices: [Choice]
     }
+
+    private static let repoPromptZH = """
+    你在给一个技术 feed 写一句话摘要。用中文说清这个项目到底做了什么、给谁用。
+    不超过 34 个字，一句话，结尾不加句号。不复述标语，不用「赋能/一站式/全新/让…更简单」这类空话。
+    不超过两个专有名词，英文名保留原样。信息不足就回「看不清这个仓库具体做什么」。只输出那一句。
+    """
+
+    private static let releasePromptZH = """
+    你在给一个技术 feed 写一句话摘要。用中文说清这个版本改了什么，不超过 30 个字，一句话，结尾不加句号。
+    只挑最要紧的一两条变化，别罗列。信息不足就回「看不清」。只输出那一句。
+    """
 
     private static func ask(key: String, system: String, user: String) async -> String? {
         // 端点完全由使用者配：DeepSeek、OpenRouter、本机 Ollama / LM Studio 都行。
@@ -166,10 +193,10 @@ enum CoreValue {
     }
 
     static var keySource: String {
-        if !isConfigured { return "未配模型" }
+        if !isConfigured { return L.t("未配模型", "no model configured") }
         if ProcessInfo.processInfo.environment["OPENFEED_LLM_KEY"] != nil
-            || ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"] != nil { return "环境变量" }
-        if Auth.keychainToken(service: "app.openfeed.deepseek", account: "apiKey") != nil { return "钥匙串" }
-        return "没有密钥"
+            || ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"] != nil { return L.t("环境变量", "environment") }
+        if Auth.keychainToken(service: "app.openfeed.deepseek", account: "apiKey") != nil { return L.t("钥匙串", "keychain") }
+        return L.t("没有密钥", "no key")
     }
 }
