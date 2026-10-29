@@ -8,6 +8,9 @@ enum CoreValue {
 
     // MARK: - 缓存的结论
 
+    /// 一句话是按语言生成的：切了语言就别拿旧的那条顶上。
+    private static func cacheKey(_ id: String) -> String { "\(id)|\(L.isEN ? "en" : "zh")" }
+
     static func cached(_ id: String) -> String? {
         lock.lock()
         defer { lock.unlock() }
@@ -35,7 +38,7 @@ enum CoreValue {
     // MARK: - 生成
 
     static func line(for item: FeedItem) async -> String? {
-        if let hit = cached(item.id) { return hit }
+        if let hit = cached(cacheKey(item.id)) { return hit }
         guard let key = Self.apiKey, Self.isConfigured else { return nil }
         let text: String?
         switch item.kind {
@@ -55,7 +58,7 @@ enum CoreValue {
         guard let text, !text.isEmpty, !text.contains("看不清"), !text.lowercased().contains("unclear") else { return nil }
         let cleaned = clean(text)
         guard cleaned.count >= 4 else { return nil }
-        remember(item.id, line: cleaned)
+        remember(cacheKey(item.id), line: cleaned)
         return cleaned
     }
 
@@ -63,7 +66,7 @@ enum CoreValue {
     static func prewarm(items: [FeedItem], limit: Int) async {
         guard apiKey != nil, isConfigured else { return }
         let targets = items.filter { item in
-            item.kind == .repo && cached(item.id) == nil
+            item.kind == .repo && cached(cacheKey(item.id)) == nil
         }.prefix(limit)
         var queue = targets.makeIterator()
         await withTaskGroup(of: (String, String?).self) { group in

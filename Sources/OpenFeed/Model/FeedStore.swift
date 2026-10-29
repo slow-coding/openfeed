@@ -98,6 +98,14 @@ final class FeedStore: ObservableObject {
         config.save()
     }
 
+    /// code 空串 = 跟系统语言。
+    func setLanguage(_ code: String) {
+        config.uiLang = code
+        config.save()
+        L.reset()
+        objectWillChange.send()
+    }
+
     func setHover(_ item: FeedItem?) {
         let next = item?.id
         if hoveredID != next { hoveredID = next }

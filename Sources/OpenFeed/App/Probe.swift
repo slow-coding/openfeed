@@ -21,6 +21,18 @@ enum Probe {
         var report: [String: Any] = [:]
         report["authorized"] = Auth.source
 
+        // 菜单里那条「语言」走的同一个入口，自检时不必去点菜单。
+        if let index = arguments.firstIndex(of: "--set-lang"), index + 1 < arguments.count {
+            let code = arguments[index + 1]
+            store.setLanguage(code)
+            report["uiLang"] = FeedConfig.load().uiLang
+            report["uiSample"] = [
+                "header": L.t("今天", "Today"),
+                "chip": L.t("仓库", "Repos"),
+                "value": L.t("价值 18", "value 18")
+            ]
+        }
+
         if arguments.contains("--fetch") {
             let started = Date()
             await store.refresh(manual: true)

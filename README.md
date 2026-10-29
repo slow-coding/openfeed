@@ -95,7 +95,7 @@ OpenFeed --probe --dump --schedule          # read what is on disk, plus the 9am
 OpenFeed --probe --images                   # time image resolution for the top rows
 ```
 
-The interface is bilingual (English and Chinese) and follows the system language; set `uiLang` in `config.json` to pin it. Model-written one-liners follow the same setting. `OPENFEED_LANG=en` overrides both, which is how the screenshots above were rendered.
+The interface is bilingual (English and Chinese) and follows the system language. Switch it in the menu — **Language** → *Follow system / English / 中文* — or pin it with `uiLang` in `config.json`. Model-written one-liners follow the same setting, and cached ones are kept per language so a switch never leaves Chinese text in an English panel. `OPENFEED_LANG=en` overrides everything, which is how the screenshots above were rendered.
 
 ## License
 

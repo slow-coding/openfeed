@@ -244,6 +244,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hourItem.submenu = hourMenu
         menu.addItem(hourItem)
 
+        // 语言：菜单里就能切，不用去改 config.json。
+        let langMenu = NSMenu()
+        let options: [(code: String, title: String)] = [
+            ("", L.t("跟随系统", "Follow system")),
+            ("en", "English"),
+            ("zh", "中文")
+        ]
+        for option in options {
+            let item = NSMenuItem(title: option.title, action: #selector(menuSetLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = option.code
+            item.state = store.config.uiLang == option.code ? .on : .off
+            langMenu.addItem(item)
+        }
+        let langItem = NSMenuItem(title: L.t("语言", "Language"), action: nil, keyEquivalent: "")
+        langItem.submenu = langMenu
+        menu.addItem(langItem)
+
         menu.addItem(.separator())
 
         let configItem = NSMenuItem(title: L.t("打开关注列表…", "Open watch list…"), action: #selector(menuOpenConfig), keyEquivalent: "")
@@ -304,6 +322,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let enable = !LoginItem.isEnabled
         if enable { LoginItem.enable() } else { LoginItem.disable() }
         UserDefaults.standard.set(enable, forKey: "autoStart")
+    }
+
+    @objc private func menuSetLanguage(_ sender: NSMenuItem) {
+        store.setLanguage(sender.representedObject as? String ?? "")
+        render()
     }
 
     @objc private func menuSetHour(_ sender: NSMenuItem) {

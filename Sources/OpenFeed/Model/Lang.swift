@@ -22,6 +22,9 @@ enum L {
         return resolved
     }
 
+    /// 菜单里改了语言要立刻生效：缓存清掉，下一次取文案就按新的来。
+    static func reset() { cached = nil }
+
     static func t(_ zh: String, _ en: String) -> String { isEN ? en : zh }
 
     /// 线名是存在数据里的（关注项目 / 讨论是 app 自己生成的两条），显示时才翻。
